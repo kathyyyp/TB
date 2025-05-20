@@ -1577,7 +1577,7 @@ my_unpaired_comparisons <- list(
 # Hence why our data may not be normally distributed still
 
 
-## Normality tests ------
+## Normality tests ---------------------------------------------------------------------------------------
 library(ggplot2)
 
 plot(density(expression)) #quite a long tail on the right - not normal
@@ -1593,31 +1593,25 @@ ks.test(expression, "pnorm")
 qqnorm(expression)
 qqline(expression, col="red")
 
-
-# Boxplot 
 boxplot_gsva$V1 <- as.numeric(boxplot_gsva$V1)
 boxplot_gsva$group <- factor(boxplot_gsva$group)
 
 # View(pivot_wider(boxplot_gsva, names_from = group, values_from = PID))
-View(pivot_wider(boxplot_gsva_paired, names_from = group, values_from = PID))
 
-# # Global filtering (remove unpaired samples)
-# # First, filter the samples that have no other paired sample
-# boxplot_gsva_paired <- boxplot_gsva %>% 
-#   group_by(PID) %>%
-#   filter(n() >= 2) %>%
-#   ungroup()
 
-# This isn't enough yet because a patient with only TB_T2 and TB_T6 would be included. They’ll still be used in a TB_T0 vs TB_T6 test — even though they lack TB_T0
+# ================================================================================== #
+##  PAIRED COMPARISONS  ===================================================================
+# ================================================================================== #
 # We need to do per-comparison filtering
+# We can't just filter out the unpaired samples and run a wilcox_test on that because a paired wilcoxin rank sum test will expect one value from each group 
+# Say we are comparing TB_T0 and TB_T6. There may be patients with TB_T0 and TB_T2 but not TB_T6. They’ll still be present in the data and wilcox_test will extract the TB_T0 for that patient (since the comparison specificed TB_T0 and TB_T6. However, since the test is paired it won't work because wilcox_test needs one measurement from Group1 (TB_T0) and one from Group2 (TB_T6)
  # When comparison = TB_T0 vs TB_T6, wilcoxin rank sum test will expect one value from Group 1 (TB_T0) and one value from Group 2 (TB_T6)
- # Tried with per-comparison filtering and got the error below #'x' and 'y' must have the same length (because both groups don't have the same number of samples, since some patients don't have paired data)
+ # Tried it paired and got the error below #'x' and 'y' must have the same length (because both groups don't have the same number of samples, since some patients don't have paired data)
+ # Unpaired will work but its not what we want here (it works because wilcox_test will rank all values from both groups and compare group ranks (not per patient) =
 
-# group1 = my_paired_comparisons[[2]][1]
-# group2 = my_paired_comparisons[[2]][2]
-
-#Per-comparison filtering
-
+## Per-comparison filtering for Wilcoxin paired statistical test ---------------------------------------------------------------------------------------
+#First, need to create a function for per-comparison filtering
+#Create function to get ONLY paired data between two groups 
 get_paired_data <- function(data, group1, group2) {
   ids1 <- data$PID[data$group == group1]
   ids2 <- data$PID[data$group == group2]
@@ -1627,15 +1621,23 @@ get_paired_data <- function(data, group1, group2) {
     filter(group %in% c(group1, group2), PID %in% paired_ids)
 }
 
+## Make stat.table.gsva ---------------------------------------------------------------------------------------
+#map_dfr will apply the below function to each element of list my_paired_comparisons, and directly rbind the results
+#In this function, 'groups' is each element of the list. so groups[1] should be "HC_T0"
+#Using map_dfr here is the same as if we wrote stat_table_function <- function(groups){...} and then did stat_table_function(groups = my_paired_comparisons[1]) and stat_table_function(groups = my_paired_comparisons[2]) etc etc for all 4 comparisons, and then rbinded the output together
 stat.table.gsva <- map_dfr(my_paired_comparisons, function(groups) {
+  #1) extract the timepoint name
   g1 <- groups[1]
   g2 <- groups[2]
+  
+  #2) make a data frame only containing our paired samples, making use of the function we made above
   df <- get_paired_data(data = boxplot_gsva, 
                         group1 = g1, 
                         group2 = g2)
   
 df$group <- as.character(df$group) #don't know why this is needed. HC_T0 vs HC_T6 works without this. but the rest don't. something to do with unused factor levels?
-
+  
+#3) run wilcox_test on the paired samples
   if (n_distinct(df$PID) > 0) {
     wilcox_test(df, V1 ~ group, paired = TRUE) %>%
         add_xy_position(x = "group") %>% 
@@ -1646,33 +1648,28 @@ df$group <- as.character(df$group) #don't know why this is needed. HC_T0 vs HC_T
 })
 
 
-#MANUALLY ASSIGN BRACKET POSITIONS
+## Assign xmin and xmax positions manually  ---------------------------------------------------------------------------------------
 stat.table.gsva$xmin = c(1,3,3,3)
 stat.table.gsva$xmax = c(2,4,5,6)
 
-# 
-# # Check groups exactly:
-# unique(df$group)
-# 
-# # Check class of V1:
-# class(df$V1)
-# summary(df$V1)
-# 
-# tb_t0 <- df$V1[df$group == g1]
-# tb_t2 <- df$V1[df$group ==g2]
-# 
-# length(tb_t0)
-# length(tb_t2)
-# 
-# stat_res <- wilcox.test(tb_t0, tb_t2, paired = TRUE)
+# ================================================================================== #
+##  UNPAIRED COMPARISONS  ===================================================================
+# ================================================================================== #
+stat.table.gsva2 <- wilcox_test(boxplot_gsva, V1 ~ group, 
+                                paired = FALSE,
+                                comparisons = my_unpaired_comparisons) %>%
+        add_xy_position(x = "group")
+stat.table.gsva2 <- stat.table.gsva2[,!colnames(stat.table.gsva2) %in%
+                                          c("p.adj","p.adj.signif")]
+
+stat.table.gsva.all <- rbind(stat.table.gsva, stat.table.gsva2)
 
 # stat.table.gsva <- stat.table.gsva[which(stat.table.gsva$p < 0.05),]
 lowest_bracket <- max(boxplot_gsva$V1) + 0.05*(max(boxplot_gsva$V1))
-stat.table.gsva$y.position <- seq(lowest_bracket, by= 0.1, length.out = nrow(stat.table.gsva))
+stat.table.gsva.all$y.position <- seq(lowest_bracket, by= 0.1, length.out = nrow(stat.table.gsva.all))
 
 
-
-
+## Boxplot ggplot2 ---------------------------------------------------------------------------------------
 boxplotfinal2 <- ggplot(boxplot_gsva, aes(
   x = factor(group),
   # x = factor(group),
@@ -1694,7 +1691,7 @@ boxplotfinal2 <- ggplot(boxplot_gsva, aes(
   geom_point(aes(color = group))+
   geom_line(aes(group = PID), color = "black", alpha = 0.2) +
   
-  stat_pvalue_manual(stat.table.gsva,
+  stat_pvalue_manual(stat.table.gsva.all,
                      label = "p",
                      tip.length = 0.01,
                      size = 6)+
@@ -1707,10 +1704,14 @@ boxplotfinal2 <- ggplot(boxplot_gsva, aes(
   # scale_y_continuous(expand = c(0.07, 0, 0.07, 0)) +
   
   labs(title = paste0("Signature Analysis"),
-       caption = "Signature: IFITM1, CD274, TAP1, GBP5, GBP2, S100A8, FCGR1CP") +
+       caption = paste("Signature: IFITM1, CD274, TAP1, GBP5, GBP2, S100A8, FCGR1CP\n",
+                       "Wilcoxin rank-sum test performed for paired samples\n",
+                       "Mann-Whitney-U performed for HC vs TB comparisons")) +
   ylab (label = "Enrichment Score") +
   xlab (label = "Condition")
 
+genesig_D_7_figures.dir <- file.path(my_directory,"output", "signature", "genesig_D_7", "figures")
+if(!exists(genesig_D_7_figures.dir)) dir.create(genesig_D_7_figures.dir, recursive = TRUE)
 ggsave(boxplotfinal2, filename = file.path(genesig_D_7_figures.dir, "gsva_all_paired.png"), 
        width = 3500, 
        height = 3200, 
