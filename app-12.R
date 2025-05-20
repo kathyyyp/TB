@@ -32,7 +32,10 @@ library(shinydashboard)
 library(GSVA)
 library(ggfortify)
 library(heatmap3)
-# 
+library(pROC)
+library(R.utils)
+library(stringr)
+
 # remove.packages("shiny")
 # install.packages("shiny", type = "source")
 # 
@@ -95,7 +98,10 @@ HC_samples_place <- read_excel("Fluidigm assay 400 samples patients infos 030225
 TB_More_Info <- read_excel("Fluidigm assay 400 samples patients infos 030225.xlsx", sheet = "index infos", skip = 1, col_names = TRUE)
 TB_samples_place <- read_excel("Fluidigm assay 400 samples patients infos 030225.xlsx", sheet = "index patients samples place", col_names = FALSE)
 
-
+#Validation Cohorts
+GSE89403_clinical <- read.table(file.path("public", "GSE89403", "clinical.txt"))
+GSE89403_counts_vst <- read.table(file.path("public", "GSE89403", "counts_vst.txt"))
+GSE89403_gene_annot <-  read.table(file.path("public", "GSE89403", "gene_annot.txt"))
 
 # ================================================================================== #
 # 2. CLEAN UP EXPRESSION DATA ======================================================
@@ -768,7 +774,7 @@ ui <- dashboardPage(
       menuItem("4) Differential Expression", tabName = "comparison", icon = icon("th")),
       menuItem("5) Gene Expression Boxplots", tabName = "boxplot", icon = icon("th")),
       menuItem("6) Signature Analysis", tabName = "signature", icon = icon("th")),
-      menuItem("7) Validation of Signature", tabName = "signature", icon = icon("th"))
+      menuItem("7) Validation of Signature", tabName = "validation", icon = icon("th"))
 
     ) #close sidebarMenu
   ), #closedashboardSidebar
@@ -892,8 +898,24 @@ ui <- dashboardPage(
               ),
               plotOutput("boxplotgsva",
                          height = "500px")
-              )
+              ),
 
+      ##UI 7) PUBLIC VALIDATION (GSE89403)-----------------------------------------------
+      tabItem("validation",
+              selectizeInput( "gene3",
+                              label = "Enter gene (HGNC symbol) of interest (case sensitive)",
+                              choices =  c("IFITM1","CD274","TAP1","GBP5","GBP2","S100A8","FCGR1CP"),
+                              multiple = TRUE,
+                              width = "50%",
+                              options = list(
+                                'plugins' = list('remove_button')
+                                # 'persist' = TRUE), 
+                              )
+                              
+              ),
+              plotOutput("roc",
+                         height = "500px")
+              )
     ) #close tabItems
   )#close Dashboard body
 ) #close UI
@@ -1007,15 +1029,15 @@ server <- function(input, output, session) {
   updateSelectizeInput(session, "gene", choices = row.names(expression), server = TRUE)
   updateSelectizeInput(session, "gene2", choices = row.names(expression), server = TRUE,
                        selected = c("IFITM1", "CD274", "TAP1", "GBP5", "GBP2", "S100A8", "FCGR1CP"))
-  
+   updateSelectizeInput(session, "gene3", choices = row.names(expression), server = TRUE,
+                       selected = c("IFITM1", "CD274", "TAP1", "GBP5", "GBP2", "S100A8", "FCGR1CP"))
   
   
   ## SERVER 5)  BOXPLOTS    ----------------------------------------------------------------------------------------------
-  output$boxplot <-
-    
-    #Unpaired boxplots 
-    renderPlot({
-      
+
+      subsetted_data <- reactive({
+        req(input$boxplotshow)
+        
       boxplotdata_unpaired <- as.data.frame(t(expression))
       
       boxplotdata_unpaired <- boxplotdata_unpaired[row.names(clinical),]
@@ -1114,65 +1136,16 @@ server <- function(input, output, session) {
       # boxplot_theme <- theme(axis.title = element_text(size = 22),
       #                        axis.text = element_text(size = 22),
       #                        title = element_text(size = 18))
-
-
       
+    
+
       if(input$boxplotshow == "Only TB T0 & HC T0"){
         boxplot <- boxplot[which(boxplot$Condition == "HC_T0" | boxplot$Condition == "TB_T0"),]
         stat.table4 <- stat.table4[which(stat.table4$contrast == "TB_T0-HC_T0"),]
         stat.table4$xmax <- 2
         stat.table4$y.position <- max(boxplot$gene)+max(boxplot$gene*0.02)
-
-      plotdisplay <-  ggplot(boxplot, aes(
-        x = Condition,
-        y = gene)) +
-        
-        theme_bw(base_size = 20) +
-        
-        # geom_boxplot( aes(fill = Disease))+
-        
-      geom_dotplot(binaxis = "y",
-                   stackdir='center',
-                   position=position_dodge(),
-                   stackratio = 0.3,
-                   aes(fill = Disease),
-                   dotsize = 0.55
-                   )+
-
-      # geom_jitter(position=position_jitter(0.2),
-      #             alpha = 0.5,
-      #             size = 3,
-      #             aes(color = Disease))+
-
-      
-        # facet_wrap(~ cse, strip.position = "bottom") +
-        # 
-        stat_summary(fun.data = "mean_se",
-                     geom = "errorbar",
-                     width = 0.15,
-                     linewidth = 0.7) +
-        
-        stat_summary(fun.y=mean,
-                     geom="point", 
-                     color="red",
-                     size = 1.5) +
-      
-        labs(title = input$gene) +
-        ylab (label = "Normalised Expression") +
-        xlab (label = "Group") +
-        # theme(legend.position = "None")
-        # +
-        
-        stat_pvalue_manual(stat.table4,
-                           label = "p",
-                           tip.length = 0.02,
-                           # bracket.nudge.y =  c(0, 0.2, 0, 0.2),
-                           #  bracket.shorten = 0.1,
-                           size = 4)
-      
-      print (plotdisplay)
+        list(box = boxplot, stat = stat.table4)
       }
-      
       
       
       if(input$boxplotshow == "Only T6 & T0"){
@@ -1185,55 +1158,7 @@ server <- function(input, output, session) {
         lowestbracketiwant <- max(boxplot$gene) + max(boxplot$gene)*0.02
         distancetomovedown <- lowestbracket - lowestbracketiwant
         stat.table4$y.position <- stat.table4$y.position - distancetomovedown
-        
-        
-        plotdisplay <-  ggplot(boxplot, aes(
-          x = Condition,
-          y = gene)) +
-          
-          theme_bw(base_size = 20)+
-          
-          # geom_boxplot( aes(fill = Disease))+
-          
-         
-          geom_dotplot(binaxis = "y",
-                       stackdir='center',
-                       position=position_dodge(),
-                       stackratio = 0.3,
-                       aes(fill = Disease),
-                       dotsize = 0.55
-          )+
-          
-          # geom_jitter(position=position_jitter(0.2),
-          #             alpha = 0.5,
-          #             size = 3,
-          #             aes(color = Disease))+ 
-          # facet_wrap(~ cse, strip.position = "bottom") +
-          # 
-          stat_summary(fun.data = "mean_se",
-                       geom = "errorbar",
-                       width = 0.15,
-                       linewidth = 0.7) +
-          
-          stat_summary(fun.y=mean,
-                       geom="point", 
-                       color="red",
-                       size = 1.5) +
-          
-          labs(title = input$gene) +
-          ylab (label = "Normalised Expression") +
-          xlab (label = "Group") +
-          # theme(legend.position = "None")
-          # +
-          
-          stat_pvalue_manual(stat.table4,
-                             label = "p",
-                             tip.length = 0.02,
-                             # bracket.nudge.y =  c(0, 0.2, 0, 0.2),
-                             #  bracket.shorten = 0.1,
-                             size = 4)
-        
-        print (plotdisplay)
+         list(box = boxplot, stat = stat.table4)
       }
       
       
@@ -1244,59 +1169,23 @@ server <- function(input, output, session) {
         stat.table4$xmin <- c(1,2,1,3,2)
         stat.table4$xmax <- c(4,4,2,4,3)
         stat.table4[which(stat.table4$resultsname == "contrast5"), "y.position"] <- stat.table4[which(stat.table4$resultsname == "contrast3"), "y.position"] + (stat.table4$y.position[1] - stat.table4$y.position[3])
+       list(box = boxplot, stat = stat.table4)
+        }
         
-        plotdisplay <-  ggplot(boxplot, aes(
-          x = Condition,
-          y = gene)) +
-          
-          theme_bw(base_size = 20)+
-          
-          # geom_boxplot( aes(fill = Disease))+
-          
-          geom_dotplot(binaxis = "y",
-                       stackdir='center',
-                       position=position_dodge(),
-                       stackratio = 0.3,
-                       aes(fill = Disease),
-                       dotsize = 0.55
-          )+
-          # geom_jitter(position=position_jitter(0.2),
-          #             alpha = 0.5,
-          #             size = 3,
-          #             aes(color = Disease))+
-          
-          scale_fill_manual(values="#00BFC4") +
-          
-          # facet_wrap(~ cse, strip.position = "bottom") +
-          # 
-          stat_summary(fun.data = "mean_se",
-                       geom = "errorbar",
-                       width = 0.15,
-                       linewidth = 0.7) +
-          
-          stat_summary(fun.y=mean,
-                       geom="point", 
-                       color="red",
-                       size = 1.5) +
-          
-          labs(title = input$gene) +
-          ylab (label = "Normalised Expression") +
-          xlab (label = "Group") +
-          # theme(legend.position = "None")
-          # +
-          
-          stat_pvalue_manual(stat.table4,
-                             label = "p",
-                             tip.length = 0.02,
-                             # bracket.nudge.y =  c(0, 0.2, 0, 0.2),
-                             #  bracket.shorten = 0.1,
-                             size = 4)
+        else{
+           list(box = boxplot, stat = stat.table4)
+        }
         
-        print (plotdisplay)
-      }
+      })
       
+    output$boxplot <-
+    
+    #Unpaired boxplots 
+    renderPlot({
       
-      else{
+      boxplot <- subsetted_data()$box
+      stat.table4 <- subsetted_data()$stat
+      
         plotdisplay <-  ggplot(boxplot, aes(
           x = Condition,
           y = gene)) +
@@ -1342,7 +1231,6 @@ server <- function(input, output, session) {
                              size = 4)
         
         print (plotdisplay)
-      }
       
     }, #Close render plot
     res = 120
@@ -1433,7 +1321,7 @@ my_unpaired_comparisons <- list(
 # Hence why our data may not be normally distributed still
 
 
-## Normality tests ---------------------------------------------------------------------------------------
+### Normality tests ---------------------------------------------------------------------------------------
 #dont need to show here
 
 boxplot_gsva$V1 <- as.numeric(boxplot_gsva$V1)
@@ -1449,7 +1337,7 @@ get_paired_data <- function(data, group1, group2) {
     filter(group %in% c(group1, group2), PID %in% paired_ids)
 }
 
-## Make stat.table.gsva ---------------------------------------------------------------------------------------
+### Make stat.table.gsva ---------------------------------------------------------------------------------------
 #map_dfr will apply the below function to each element of list my_paired_comparisons, and directly rbind the results
 #In this function, 'groups' is each element of the list. so groups[1] should be "HC_T0"
 #Using map_dfr here is the same as if we wrote stat_table_function <- function(groups){...} and then did stat_table_function(groups = my_paired_comparisons[1]) and stat_table_function(groups = my_paired_comparisons[2]) etc etc for all 4 comparisons, and then rbinded the output together
@@ -1481,7 +1369,7 @@ stat.table.gsva$xmin = c(1,3,3,3)
 stat.table.gsva$xmax = c(2,4,5,6)
 
 # ================================================================================== #
-##  UNPAIRED COMPARISONS  ===================================================================
+###  UNPAIRED COMPARISONS  ===================================================================
 # ================================================================================== #
 stat.table.gsva2 <- wilcox_test(boxplot_gsva, V1 ~ group, 
                                 paired = FALSE,
@@ -1598,6 +1486,287 @@ boxplotfinal2 <- ggplot(boxplot_gsva, aes(
       print(heatmapplot)
     }) #close renderPlot
 
+  
+## SERVER 7) PUBLIC VALIDATION WITH GSE89403 ----------------------------
+
+  output$roc<-
+  renderPlot({
+    
+    validate(need(input$gene3, 'Choose genes!')) #the message "Choose genes!" shows if no genes have been picked
+    #req(input$gene) #can use this line too - will just show blank screen, no error message or chosen message shown
+    #without these, error message shows up if no genes are picked
+    
+    
+    gene_set_list <- list(c(input$gene3))
+
+signature_geneid <- as.character(GSE89403_gene_annot[match(gene_set_list[[1]], GSE89403_gene_annot$Symbol), "GeneID"])
+gene_set_list <- list(c(signature_geneid))
+
+gsvapar <- gsvaParam(as.matrix(GSE89403_counts_vst), 
+                     gene_set_list, 
+                     maxDiff = TRUE, 
+                     minSize = 1)
+
+gsva_res <- gsva(gsvapar) #dont need to transpose because next line takes row 1 anyway
+
+
+all(row.names(gsva_res) == row.names(GSE89403_clinical))
+
+boxplot_gsva <- as.data.frame(cbind(gsva = t(gsva_res),
+                                    group = GSE89403_clinical$group))
+
+
+
+gsva_theme <- theme(axis.title = element_text(size = 24),
+                    axis.text = element_text(size = 24),
+                    title = element_text(size = 20),
+                    legend.position = "None") 
+  
+
+
+
+my_comparisons <- combn(unique(GSE89403_clinical$group), 2, simplify = FALSE)
+
+
+x_order <- c("Healthy", "Lungdx_ctrl", "MTP_ctrl", "TB_DX", "TB_day_7", "TB_week_4", "TB_week_24")
+
+boxplot_gsva$group <- factor(boxplot_gsva$group, levels = x_order)
+boxplot_gsva$V1 <- as.numeric(boxplot_gsva$V1)
+
+stat.table.gsva <- boxplot_gsva  %>%
+  wilcox_test(V1 ~ group,
+              paired = FALSE) %>%
+  add_xy_position(x = "group")
+
+stat.table.gsva <- stat.table.gsva[which(stat.table.gsva$p < 0.05),]
+lowest_bracket <- max(boxplot_gsva$V1) + 0.05*(max(boxplot_gsva$V1))
+stat.table.gsva$y.position <- seq(lowest_bracket, by= 0.1, length.out = nrow(stat.table.gsva))
+
+
+
+  
+boxplot_public_validation <- ggplot(boxplot_gsva, aes(
+  x = factor(group, level = x_order),
+  # x = factor(group),
+  y = as.numeric(boxplot_gsva[,1]),
+  group = group)) +
+  
+  theme_bw()+
+  
+  gsva_theme +
+  
+  geom_boxplot(position = position_dodge(1)) +
+  
+  geom_jitter(aes(color = group),
+              alpha = 0.5,
+              size = 2.5, 
+              width = 0.3) +
+  
+  
+  stat_pvalue_manual(stat.table.gsva,
+                     label = "p",
+                     tip.length = 0.01,
+                     size = 4)+
+  stat_summary(fun.y = mean, fill = "red",
+               geom = "point", shape = 21, size =4,
+               show.legend = TRUE) +
+  # # scale_x_discrete(labels= c("Control" = "Control", "Mild.moderate.COPD" = "mCOPD", "Severe.COPD" = "sCOPD"))+
+  # scale_y_continuous(expand = c(0.07, 0, 0.07, 0)) +
+  
+  theme(axis.text.x = element_text(size = 15))+
+  labs(title = paste0("Signature Validation: GSE89403"),
+       caption = paste("Signature:", 
+                       paste(c(input$gene3), collapse = " "), 
+                       "\n",
+                       "Only p<0.5 from Mann-Whitney U test shown")) +
+  ylab (label = "Enrichment Score") +
+  xlab (label = "Disease")
+
+print(boxplot_public_validation)
+
+
+## 4) Validation  ------------------------------------------------------
+
+
+# --- PAIRWISE ROC ANALYSIS --- #
+# Define all pairwise comparisons of interest
+pairwise_comparisons <- list(
+  c("Healthy", "TB_DX"),
+  c("MTP_ctrl", "TB_DX"),
+  c("TB_DX", "TB_day_7"),
+  c("TB_DX", "TB_week_4"),
+  c("TB_DX", "TB_week_24"),
+  c("Healthy", "TB_week_24"),
+  c("MTP_ctrl", "TB_week_24")
+)
+
+# Create a list to store AUC values and roc objects
+GSE89403_res_table <- data.frame()
+GSE89403_roc_objects <- list()
+
+# Loop through each pairwise comparison
+for (pair in pairwise_comparisons) {
+  
+  group1 <- pair[1]
+  group2 <- pair[2]
+  
+  # Subset data to omly include the 2 rgroups of interest
+  subset_clinical <- GSE89403_clinical[GSE89403_clinical$group %in% c(group1,group2),]
+  subset_counts <- GSE89403_counts_vst[, row.names(subset_clinical)]
+  
+  subset_clinical$group <- factor(subset_clinical$group, levels = c(group1, group2))
+  
+  # GSVA
+  gene_set_list <- list(c(input$gene3))
+  signature_geneid <- as.character(GSE89403_gene_annot[match(gene_set_list[[1]], GSE89403_gene_annot$Symbol), "GeneID"])
+  gene_set_list <- list(c(signature_geneid))
+  
+  gsvapar <- gsvaParam(as.matrix(subset_counts), #GSE89403_counts_vst$E is the same
+                       gene_set_list, 
+                       maxDiff = TRUE, 
+                       minSize = 1)
+  
+  gsva_res <- gsva(gsvapar)
+  
+  glm_data <- data.frame(Score = gsva_res[1,], Group = subset_clinical$group)
+  
+  table(glm_data$Group)
+  
+  
+  glm_data$Group <- factor(glm_data$Group, levels = c(group1, group2))
+  glm_model <- glm(Group ~ Score, data = glm_data, family = binomial) 
+  
+  test_probs <- predict(glm_model, type = "response")
+  
+  roc_obj <- roc(glm_data$Group, test_probs)
+  
+
+  auc_ci <- ci.auc(roc_obj)  #default 95% CI is computed with 2000 stratified bootstrap replicates.
+  
+  #  The "optimal threshold" refers to the point on the ROC curve where you achieve the best balance between sensitivity and specificity, or where the classifier is most effective at distinguishing between the positive and negative classes.
+  optimal_threshold_coords <- coords(roc_obj, "best", ret = c("threshold", "sensitivity", "specificity", best.method = "youden"))
+  
+  GSE89403_res_current <-cbind(
+    comparison = paste0(group1,"vs",group2),
+    samples_group1 = paste(group1, "=", sum(glm_data$Group == group1)),
+    samples_group2 = paste(group2, "=", sum(glm_data$Group == group2)),
+    auc = auc(roc_obj),
+    ci = paste0(round(as.numeric(auc_ci[1]),2), "-", round(as.numeric(auc_ci[3]),2)),
+    sensitivity = optimal_threshold_coords$sensitivity, 
+    specificity = optimal_threshold_coords$specificity
+    
+  )
+  
+  GSE89403_res_table <- rbind(GSE89403_res_table, GSE89403_res_current)
+  
+  GSE89403_roc_objects[[paste0(group1,"vs",group2)]] <- roc_obj
+
+}
+  
+
+
+
+## 5) ROC Curves -----------------------------------------------------------
+
+ # Convert ROC data to a format suitable for ggplot
+ roc_data <- do.call(rbind, lapply(names(GSE89403_roc_objects), function(comparison) {
+   data.frame(
+     TPR = rev(GSE89403_roc_objects[[comparison]]$sensitivities),  # True Positive Rate
+     FPR = rev(1 - GSE89403_roc_objects[[comparison]]$specificities),  # False Positive Rate
+     Comparison = comparison,
+     auc = rev(GSE89403_roc_objects[[comparison]]$auc)
+   )
+ }))
+ 
+ roc_data$Comparison <- factor(roc_data$Comparison, levels = c(
+   "HealthyvsTB_DX",
+   "MTP_ctrlvsTB_DX",
+   "TB_DXvsTB_day_7",
+   "TB_DXvsTB_week_4",
+   "TB_DXvsTB_week_24",
+   "HealthyvsTB_week_24",
+   "MTP_ctrlvsTB_week_24"
+ ))
+ 
+ roc_data$Comparison_plotlabel <- roc_data$Comparison
+ 
+ levels(roc_data$Comparison_plotlabel) <-  c(
+   "Healthy vs TB_T0",
+   "MTP Controls vs TB_T0",
+   "TB_T0 vs TB_Day7",
+   "TB_T0 vs TB_Wk4",
+   "TB_T0 vs TB_Wk24",
+   "Healthy vs TB_Wk24",
+   "MTP Controls vs TB_Wk24"
+ )  
+ 
+ roc_data$ci <- GSE89403_res_table[match(roc_data$Comparison, GSE89403_res_table$comparison), "ci"]
+
+ roc_data$legend <- paste0(roc_data$Comparison_plotlabel,": \n AUC = ", 
+                                  round(roc_data$auc, 2), " (", roc_data$ci, ")")
+
+ 
+
+ 
+ # Disease ROC 
+ disease_roc_data <- roc_data[which(roc_data$Comparison == "HealthyvsTB_DX" | 
+                                      roc_data$Comparison == "MTP_ctrlvsTB_DX" |
+                                      roc_data$Comparison == "HealthyvsTB_week_24" |
+                                      roc_data$Comparison == "MTP_ctrlvsTB_week_24" ),]
+ 
+ disease_roc <- ggplot(disease_roc_data, aes(x = FPR, y = TPR, color = legend)) +
+   geom_line(size = 1.2) +
+   theme_bw() +
+   geom_abline(slope = 1, intercept = 0, linetype = "dashed", color = "black")  +
+   guides(colour = guide_legend(nrow = 2)) +
+   theme(legend.position = "bottom",
+         axis.title = element_text(size = 24),
+         axis.text = element_text(size = 24),
+         legend.text = element_text(size = 16),
+         title = element_text(size = 20)) +
+   labs(
+     title = "ROC - Control vs TB",
+     x = "FPR (1 - Specificity)",
+     y = "TPR (Sensitivity)",
+     color = "Comparison",
+     caption = paste("Signature:", 
+                       paste(c(input$gene3), collapse = " "), 
+                       "\n",
+                       "Only p<0.5 from Mann-Whitney U test shown")) 
+ 
+
+ # Timepoint ROC
+ timepoint_roc_data <- roc_data[which(roc_data$Comparison == "TB_DXvsTB_day_7" | 
+                                      roc_data$Comparison == "TB_DXvsTB_week_4" |
+                                      roc_data$Comparison == "TB_DXvsTB_week_24" ), ]
+ 
+ timepoint_roc <- ggplot(timepoint_roc_data, aes(x = FPR, y = TPR, color = legend)) +
+   geom_line(size = 1.2) +
+   theme_bw() +
+   geom_abline(slope = 1, intercept = 0, linetype = "dashed", color = "black")  +
+   guides(colour = guide_legend(nrow = 2)) +
+   theme(legend.position = "bottom",
+         axis.title = element_text(size = 24),
+         axis.text = element_text(size = 24),
+         legend.text = element_text(size = 16),
+         title = element_text(size = 20)) +
+   labs(
+     title = "ROC - TB treatment timepoints",
+     x = "FPR (1 - Specificity)",
+     y = "TPR(Sensitivity)",
+     color = "Comparison",
+     caption = paste("Signature:", 
+                       paste(c(input$gene3), collapse = " "), 
+                       "\n",
+                       "Only p<0.5 from Mann-Whitney U test shown"))
+ 
+ 
+ 
+ # print(disease_roc)#, disease_roc, timepoint_roc
+
+ 
+  })
+ 
 } #close Server
 
 
