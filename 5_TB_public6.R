@@ -115,6 +115,13 @@ clinical[which(clinical$disease == "MTP_ctrl"), "group"] <- "MTP_ctrl"
 counts_vst <- vst(as.matrix(raw_counts))
 counts_vst <- counts_vst[,row.names(clinical)]
 
+write.table(counts_vst, file.path("counts_vst.txt"))
+write.table(clinical, file.path("clinical.txt"))
+
+setwd(file.path(my_directory,"TB", "data", "public", this.accession.no))
+
+write.table(counts_vst, file.path(my_directory,"TB", "shiny", "data", "public", this.accession.no, "counts_vst.txt"))
+write.table(counts_vst, file.path(my_directory,"TB", "shiny", "data", "public", this.accession.no, "clinical.txt"))
 
 ## 3) GSVA and boxplot to see comparisons ---------------------------
 gene_set_list <- list(c("IFITM1","CD274","TAP1","GBP5","GBP2","S100A8","FCGR1CP"))
