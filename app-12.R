@@ -877,11 +877,11 @@ ui <- dashboardPage(
               )
       ), #close tabItem
       
-      ##UI 6) GSVA -----------------------------------------------
+      ##UI 6) SIGNATURE GSVA -----------------------------------------------
       tabItem("signature",
               selectizeInput( "gene2",
                               label = "Enter gene (HGNC symbol) of interest (case sensitive)",
-                              choices =  c("STAT1","IFITBM", "SERPING1"),
+                              choices =  c("IFITM1","CD274","TAP1","GBP5","GBP2","S100A8","FCGR1CP"),
                               multiple = TRUE,
                               width = "50%",
                               options = list(
@@ -891,9 +891,9 @@ ui <- dashboardPage(
                               
               ),
               plotOutput("boxplotgsva",
-                         height = "500px"),
-              "Only p <0.05 from unpaired T-test shown"   
-      )
+                         height = "500px")
+              )
+
     ) #close tabItems
   )#close Dashboard body
 ) #close UI
@@ -1005,7 +1005,8 @@ server <- function(input, output, session) {
   ## UPDATE SELECTIZEINPUT -----------------------------------------------------------------------------------------
   
   updateSelectizeInput(session, "gene", choices = row.names(expression), server = TRUE)
-  updateSelectizeInput(session, "gene2", choices = row.names(expression), server = TRUE)
+  updateSelectizeInput(session, "gene2", choices = row.names(expression), server = TRUE,
+                       selected = c("IFITM1", "CD274", "TAP1", "GBP5", "GBP2", "S100A8", "FCGR1CP"))
   
   
   
@@ -1389,151 +1390,9 @@ server <- function(input, output, session) {
     #without these, error message shows up if no genes are picked
     
     
-    # listofgroups <- list(c("FPR1", "SCARF1", input$gene)) #test
-    listofgroups <- list(c(input$gene2))
+    gene_set_list <- list(c(input$gene2))
     
-    
-    gsvapar <- gsvaParam(as.matrix(expression), listofgroups, maxDiff = TRUE)
-    gsva_res = gsva(gsvapar)
-    
-    gsva_res=t(gsva_res) #the results tell us how much the set of genes was represented in each sample. ie. enrichment score of 0.9 is high- meaning the genes of interest showed up alot in sample X - now when we group the samples by copd and non copd, we can see whether certain genes are enriched in samples with or without copd 
-    colnames(gsva_res)=c("gsva")
-    boxplot_gsva=cbind(gsva = gsva_res, Disease = clinical$Disease, Condition = as.character(clinical$condition))
-    boxplot_gsva <- as.data.frame(boxplot_gsva)
-    boxplot_gsva$gsva <- as.numeric(boxplot_gsva$gsva)
-    # row.names(clinical) == row.names(gsva_res)
-    
-    stat.table.gsva <- boxplot_gsva %>%
-      t_test(gsva ~ Condition,
-             paired = FALSE)
-    stat.table.gsva<- stat.table.gsva %>%
-      add_xy_position(x = "Condition")
-    # stat.table.gsva$y.position <- max(boxplot_gsva$gsva) + 0.05*(max(boxplot_gsva$gsva))
-    # stat.table.gsva$y.position <- as.numeric(stat.table.gsva$y.position)
-    stat.table.gsva <- stat.table.gsva[which(stat.table.gsva$p < 0.05),]
-    boxplotfinal2 <- ggplot(boxplot_gsva, aes(
-      x = as.factor(Condition),
-      y = as.numeric(gsva))) +
-      
-      theme_bw()+
-      
-      theme(text = element_text(size = 20),
-            legend.position = "bottom") +
-      
-      geom_boxplot(position = position_dodge(1),
-                   aes(fill = Disease)) +
-      # geom_dotplot(binaxis = "y",
-      #              stackdir='center',
-      #              position=position_dodge(),
-      #              stackratio = 0.5,
-      #              aes(fill = Disease),
-      #              dotsize = 0.7)+
-      # 
-      
-      # facet_wrap(~ cse, strip.position = "bottom") +
-      
-      # stat_summary(position = position_dodge(0.9),
-      #              fun.data = "mean_se",
-      #              geom = "errorbar",
-      #              width = 0.2,
-      #              aes(fill = Condition)) +
-      
-      labs(title = "Signature Analysis") +
-      ylab (label = "Enrichment Score") +
-      xlab (label = "Group") +
-      
-      
-      stat_pvalue_manual(stat.table.gsva,
-                         label = "p",
-                         tip.length = 0.02,
-                         size = 4)
-    
-    print (boxplotfinal2)
-  })
-      
-
-
-
-  output$heatmap <-
-
-    renderPlot({
-      
-      contrastindex <- which(nameconvert$contrast == input$comparison)
-      a <- nameconvert[contrastindex, "c1"]
-      b <- nameconvert[contrastindex, "c2"]
-      
-      # heatmapsamples <- clinical$PAXGENE[which(clinical$condition == "TB_T0" | clinical$condition == "HC_T0")]
-      heatmapsamples <- clinical$PAXGENE[which(clinical$condition == a | clinical$condition == b)]
-      
-      clinical_heatmap <- clinical[as.character(heatmapsamples),]
-      expression_heatmap <- expression[,as.character(heatmapsamples)]
-      
-      clinical_heatmap_ordered <- clinical_heatmap[order(clinical_heatmap$Timepoint,clinical_heatmap$Disease),]
-      
-      #Make legend
-      #Make a vector of timepoints in the same order as the clincal_ordered table. Change each timepoint to a different colour
-      Timepoint = as.character(clinical_heatmap_ordered$Timepoint)
-      Timepoint[Timepoint == "T0"] <- "lightgrey"
-      Timepoint[Timepoint == "T2"] <- "lightblue3"
-      Timepoint[Timepoint == "T4"] <- "skyblue3"
-      Timepoint[Timepoint == "T6"] <- "steelblue4"
-      
-      #Make a vector of disease in the same order as the clincal_ordered table. Change each disease to a different colour
-      Disease = as.character(clinical_heatmap_ordered$Disease)
-      Disease[Disease == "HC"] <- "seagreen"
-      Disease[Disease == "TB"] <- "red3"
-      
-      labs = cbind(Timepoint,Disease)
-      
-      
-      #reorder expression columns/samples to be the same as clinical_ordered
-      heatmapdata <- as.matrix(expression_heatmap[,row.names(clinical_heatmap_ordered)])
-      heatmapdata <- heatmapdata[-which(row.names(heatmapdata) == "B2M" | row.names(heatmapdata) == "GAPDH"),]
-      
-
-      
-     heatmapplot <-  heatmap3(heatmapdata, 
-               Colv=NA, 
-               scale = "row",
-               balanceColor=T,
-               labCol=NA,
-               showColDendro = F, 
-               showRowDendro = F,
-               margins=c(1,1),
-               ColSideLabs = F, 
-               ColSideColors =labs,
-               cexRow=1.5,
-               legendfun=function()
-                 showLegend(legend=c("HC","TB","T0", "T2", "T4", "T6"),
-                            col=c("seagreen","red3","lightgrey", "lightblue","skyblue3", "steelblue4"),
-                            cex=1.5))
-      print(heatmapplot)
-    }) #close renderPlot
-
-} #close Server
-
-
-  
-      
-
-  
-
-#RUN ----------------------------------------------------------------------------------------------------------------------------------------
-shinyApp(ui = ui, server = server)
-
-
-
-
-
-
-# ================================================================================== #
-#  GSVA PLOT BOXPLOTS FOR GENESIG_D_7 =================================================
-# ================================================================================== #
-
-gene_set_list <- list(c("IFITM1","CD274","TAP1","GBP5","GBP2","S100A8","FCGR1CP"))
-
-# clinical <- read.csv("C:/Users/165861_admin/OneDrive - UTS/Documents/RBMB/TB/data/processed/post-QC/clinical.csv", row.names = 1)
-# expression <- as.matrix(read.csv("C:/Users/165861_admin/OneDrive - UTS/Documents/RBMB/TB/data/processed/post-QC/expression.csv", row.names = 1, check.names = FALSE))
+# gene_set_list <- list(c("IFITM1","CD274","TAP1","GBP5","GBP2","S100A8","FCGR1CP"))
 
 gsvapar <- gsvaParam(as.matrix(expression), 
                      gene_set_list, 
@@ -1542,15 +1401,12 @@ gsvapar <- gsvaParam(as.matrix(expression),
 
 gsva_res <- gsva(gsvapar) #dont need to transpose because next line takes row 1 anyway
 
-
 all(row.names(gsva_res) == row.names(clinical))
-
 
 
 boxplot_gsva <- as.data.frame(cbind(gsva = t(gsva_res),
                                     group = as.character(clinical$condition),
                                     PID = as.character(clinical$PID)))
-
 
 
 gsva_theme <- theme(axis.title = element_text(size = 24),
@@ -1578,40 +1434,12 @@ my_unpaired_comparisons <- list(
 
 
 ## Normality tests ---------------------------------------------------------------------------------------
-library(ggplot2)
-
-plot(density(expression)) #quite a long tail on the right - not normal
-ks.test(expression, "pnorm", mean(expression), sd(expression))
-
-install.packages("nortest")
-
-library("nortest")
-ad.test(expression)
-
-ks.test(expression, "pnorm")
-
-qqnorm(expression)
-qqline(expression, col="red")
+#dont need to show here
 
 boxplot_gsva$V1 <- as.numeric(boxplot_gsva$V1)
 boxplot_gsva$group <- factor(boxplot_gsva$group)
 
-# View(pivot_wider(boxplot_gsva, names_from = group, values_from = PID))
 
-
-# ================================================================================== #
-##  PAIRED COMPARISONS  ===================================================================
-# ================================================================================== #
-# We need to do per-comparison filtering
-# We can't just filter out the unpaired samples and run a wilcox_test on that because a paired wilcoxin rank sum test will expect one value from each group 
-# Say we are comparing TB_T0 and TB_T6. There may be patients with TB_T0 and TB_T2 but not TB_T6. They’ll still be present in the data and wilcox_test will extract the TB_T0 for that patient (since the comparison specificed TB_T0 and TB_T6. However, since the test is paired it won't work because wilcox_test needs one measurement from Group1 (TB_T0) and one from Group2 (TB_T6)
- # When comparison = TB_T0 vs TB_T6, wilcoxin rank sum test will expect one value from Group 1 (TB_T0) and one value from Group 2 (TB_T6)
- # Tried it paired and got the error below #'x' and 'y' must have the same length (because both groups don't have the same number of samples, since some patients don't have paired data)
- # Unpaired will work but its not what we want here (it works because wilcox_test will rank all values from both groups and compare group ranks (not per patient) =
-
-## Per-comparison filtering for Wilcoxin paired statistical test ---------------------------------------------------------------------------------------
-#First, need to create a function for per-comparison filtering
-#Create function to get ONLY paired data between two groups 
 get_paired_data <- function(data, group1, group2) {
   ids1 <- data$PID[data$group == group1]
   ids2 <- data$PID[data$group == group2]
@@ -1700,25 +1528,86 @@ boxplotfinal2 <- ggplot(boxplot_gsva, aes(
                geom = "point", shape = 21, size =4,
                show.legend = TRUE) +
   
-  # # scale_x_discrete(labels= c("Control" = "Control", "Mild.moderate.COPD" = "mCOPD", "Severe.COPD" = "sCOPD"))+
-  # scale_y_continuous(expand = c(0.07, 0, 0.07, 0)) +
-  
+
   labs(title = paste0("Signature Analysis"),
-       caption = paste("Signature: IFITM1, CD274, TAP1, GBP5, GBP2, S100A8, FCGR1CP\n",
+       caption = paste0(paste("Signature:",paste(c(input$gene2), collapse = " "),"\n"),
                        "Wilcoxin rank-sum test performed for paired samples\n",
                        "Mann-Whitney-U performed for HC vs TB comparisons")) +
   ylab (label = "Enrichment Score") +
   xlab (label = "Condition")
-
-genesig_D_7_figures.dir <- file.path(my_directory,"output", "signature", "genesig_D_7", "figures")
-if(!exists(genesig_D_7_figures.dir)) dir.create(genesig_D_7_figures.dir, recursive = TRUE)
-ggsave(boxplotfinal2, filename = file.path(genesig_D_7_figures.dir, "gsva_all_paired.png"), 
-       width = 3500, 
-       height = 3200, 
-       units = "px" )
+    
+    print (boxplotfinal2)
+  })
+      
 
 
 
+  output$heatmap <-
+
+    renderPlot({
+      
+      contrastindex <- which(nameconvert$contrast == input$comparison)
+      a <- nameconvert[contrastindex, "c1"]
+      b <- nameconvert[contrastindex, "c2"]
+      
+      # heatmapsamples <- clinical$PAXGENE[which(clinical$condition == "TB_T0" | clinical$condition == "HC_T0")]
+      heatmapsamples <- clinical$PAXGENE[which(clinical$condition == a | clinical$condition == b)]
+      
+      clinical_heatmap <- clinical[as.character(heatmapsamples),]
+      expression_heatmap <- expression[,as.character(heatmapsamples)]
+      
+      clinical_heatmap_ordered <- clinical_heatmap[order(clinical_heatmap$Timepoint,clinical_heatmap$Disease),]
+      
+      #Make legend
+      #Make a vector of timepoints in the same order as the clincal_ordered table. Change each timepoint to a different colour
+      Timepoint = as.character(clinical_heatmap_ordered$Timepoint)
+      Timepoint[Timepoint == "T0"] <- "lightgrey"
+      Timepoint[Timepoint == "T2"] <- "lightblue3"
+      Timepoint[Timepoint == "T4"] <- "skyblue3"
+      Timepoint[Timepoint == "T6"] <- "steelblue4"
+      
+      #Make a vector of disease in the same order as the clincal_ordered table. Change each disease to a different colour
+      Disease = as.character(clinical_heatmap_ordered$Disease)
+      Disease[Disease == "HC"] <- "seagreen"
+      Disease[Disease == "TB"] <- "red3"
+      
+      labs = cbind(Timepoint,Disease)
+      
+      
+      #reorder expression columns/samples to be the same as clinical_ordered
+      heatmapdata <- as.matrix(expression_heatmap[,row.names(clinical_heatmap_ordered)])
+      heatmapdata <- heatmapdata[-which(row.names(heatmapdata) == "B2M" | row.names(heatmapdata) == "GAPDH"),]
+      
+
+      
+     heatmapplot <-  heatmap3(heatmapdata, 
+               Colv=NA, 
+               scale = "row",
+               balanceColor=T,
+               labCol=NA,
+               showColDendro = F, 
+               showRowDendro = F,
+               margins=c(1,1),
+               ColSideLabs = F, 
+               ColSideColors =labs,
+               cexRow=1.5,
+               legendfun=function()
+                 showLegend(legend=c("HC","TB","T0", "T2", "T4", "T6"),
+                            col=c("seagreen","red3","lightgrey", "lightblue","skyblue3", "steelblue4"),
+                            cex=1.5))
+      print(heatmapplot)
+    }) #close renderPlot
+
+} #close Server
+
+
+  
+      
+
+  
+
+#RUN ----------------------------------------------------------------------------------------------------------------------------------------
+shinyApp(ui = ui, server = server)
 
 
 
