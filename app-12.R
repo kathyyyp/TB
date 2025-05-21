@@ -1,19 +1,19 @@
 #TB vs Household Contact PCR app-7
 
 #Mac
-my_directory <- "/Volumes/One Touch/RBMB/TB"
-setwd(file.path(my_directory,"shiny","data"))
-.libPaths("/Volumes/One Touch/rlibrary")
+# my_directory <- "/Volumes/One Touch/RBMB/TB"
+# setwd(file.path(my_directory,"shiny","data"))
+# .libPaths("/Volumes/One Touch/rlibrary")
 
 
 # INSTRUCTIONS
 # STEP 1: Change the line below to your directory (path to where the 'shiny' folder is located on your computer)
-# my_directory <- "C:/Users/165861_admin/OneDrive - UTS/Documents/RBMB/TB"
+my_directory <- "C:/Users/165861_admin/OneDrive - UTS/Documents/RBMB/TB"
 
 # STEP 2: Click "Run App" in the top right of the source pane OR highlight all of the script after this line to the end of the page and press Ctrl + Enter to run
 
-# setwd(file.path(my_directory,"shiny","data"))
-# .libPaths(file.path(my_directory,"shiny","library"))
+setwd(file.path(my_directory,"shiny","data"))
+.libPaths(file.path(my_directory,"shiny","library"))
 
 
 library(shiny)
@@ -33,7 +33,6 @@ library(GSVA)
 library(ggfortify)
 library(heatmap3)
 library(pROC)
-library(R.utils)
 library(stringr)
 
 # remove.packages("shiny")
@@ -635,11 +634,6 @@ expression_paired <- expression[,row.names(clinical_paired)]
 
 
 
-
-
-
-# LIMMA -----------------------------------------------------------------
-
 # ================================================================================== #
 # 2. LIMMA DIFFERENTIAL EXPRESSION =================================================
 # ================================================================================== #
@@ -910,10 +904,13 @@ ui <- dashboardPage(
                               options = list(
                                 'plugins' = list('remove_button')
                                 # 'persist' = TRUE), 
-                              )
-                              
+                              )        
               ),
-              plotOutput("roc",
+              radioButtons("validationshow",
+                           label = "Show:",
+                           choices = c("Boxplot of GSVA scores", "ROC Curves (Disease)", "ROC Curves (Timepoint)")),
+              
+              plotOutput("validation",
                          height = "500px")
               )
     ) #close tabItems
@@ -927,7 +924,9 @@ server <- function(input, output, session) {
   
   options(shiny.usecairo=TRUE)
   
-  ## SERVER 1)  VIEW DATA ---------------------------------------------------------------------------------------------------------------
+  # ================================================================================== #
+  ## SERVER 1)  VIEW DATA ============================================================
+  # ================================================================================== #
   
   #View PCR data file
   output$viewfile <-
@@ -943,8 +942,11 @@ server <- function(input, output, session) {
     })
 
 
-  ## SERVER 2)   VIEW NORMALISED EXPRESSION AND MASTER CLINICAL ---------------------------------------------------------------------------------------------------------------
 
+  # ================================================================================== #
+  ## SERVER 2)   VIEW NORMALISED EXPRESSION AND MASTER CLINICAL ======================
+  # ================================================================================== #
+  
   # View expression & clinical file ------------#
    output$viewexpression <-  renderDT({
      expression
@@ -954,8 +956,10 @@ server <- function(input, output, session) {
     clinical
   })
   
-   
-  ## SERVER 3) VIEW PCA PLOTS ---------------------------------------------------------------------------------------------------------------------
+  # ================================================================================== #
+  ## SERVER 3) VIEW PCA PLOTS ========================================================
+  # ================================================================================== #
+
   output$pcaplot <- renderPlot({
     
     pca_res <- prcomp(t(as.data.frame(expression)), scale. = TRUE, center = TRUE) 
@@ -978,8 +982,10 @@ server <- function(input, output, session) {
     session$clientData$output_pcaplot_width
   })
   
-   ## SERVER 4)  DIFFERENTIAL EXPRESSION AND VOLCANO PLOT --------------------------------------------------------------------------------------
-   
+  # ================================================================================== #
+  ## SERVER 4)  DIFFERENTIAL EXPRESSION AND VOLCANO PLOT =============================
+  # ================================================================================== #
+
   ### 4a: Volcano Plot --------------------------
    output$volcano<-renderPlot({
   
@@ -1032,9 +1038,10 @@ server <- function(input, output, session) {
    updateSelectizeInput(session, "gene3", choices = row.names(expression), server = TRUE,
                        selected = c("IFITM1", "CD274", "TAP1", "GBP5", "GBP2", "S100A8", "FCGR1CP"))
   
-  
-  ## SERVER 5)  BOXPLOTS    ----------------------------------------------------------------------------------------------
-
+   # ================================================================================== #
+   ## SERVER 5)  BOXPLOTS =============================================================
+   # ================================================================================== #
+   
       subsetted_data <- reactive({
         req(input$boxplotshow)
         
@@ -1269,7 +1276,10 @@ server <- function(input, output, session) {
   
   
   
-  ## SERVER 6) GSVA Signature analysis BOXPLOT ----------------------------
+
+  # ================================================================================== #
+  ## SERVER 6) GSVA Signature analysis BOXPLOT =======================================
+  # ================================================================================== #
   
   output$boxplotgsva <-   renderPlot({
     
@@ -1487,14 +1497,17 @@ boxplotfinal2 <- ggplot(boxplot_gsva, aes(
     }) #close renderPlot
 
   
-## SERVER 7) PUBLIC VALIDATION WITH GSE89403 ----------------------------
 
-  output$roc<-
+  # ================================================================================== #
+  ## SERVER 7) PUBLIC VALIDATION WITH GSE89403 =======================================
+  # ================================================================================== #
+  output$validation<-
   renderPlot({
     
     validate(need(input$gene3, 'Choose genes!')) #the message "Choose genes!" shows if no genes have been picked
     #req(input$gene) #can use this line too - will just show blank screen, no error message or chosen message shown
     #without these, error message shows up if no genes are picked
+    # gene_set_list <- list(c("IFITM1","CD274","TAP1","GBP5","GBP2","S100A8","FCGR1CP"))
     
     
     gene_set_list <- list(c(input$gene3))
@@ -1582,7 +1595,6 @@ boxplot_public_validation <- ggplot(boxplot_gsva, aes(
   ylab (label = "Enrichment Score") +
   xlab (label = "Disease")
 
-print(boxplot_public_validation)
 
 
 ## 4) Validation  ------------------------------------------------------
@@ -1761,11 +1773,19 @@ for (pair in pairwise_comparisons) {
                        "Only p<0.5 from Mann-Whitney U test shown"))
  
  
+ if(input$validationshow == "Boxplot of GSVA scores"){
+   print(boxplot_public_validation)
+ }
+ if(input$validationshow == "ROC Curves (Disease)"){
+   print(disease_roc)
+ }
  
- # print(disease_roc)#, disease_roc, timepoint_roc
+ if(input$validationshow == "ROC Curves (Timepoint)"){
+   print(timepoint_roc)
+ }
 
  
-  })
+  }) #close render plot
  
 } #close Server
 
