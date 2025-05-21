@@ -1501,287 +1501,305 @@ boxplotfinal2 <- ggplot(boxplot_gsva, aes(
   # ================================================================================== #
   ## SERVER 7) PUBLIC VALIDATION WITH GSE89403 =======================================
   # ================================================================================== #
+  
+  #Create an empty, placeholder reactiveVal (we will fill this in later with the gsva results ie. boxplot and roc curve data)
+  validation_all_plots <- reactiveVal(NULL)
+  
+  #observe input$genes, if it changes, then run the script for gsva and plot creation
+  observeEvent(input$gene3,{
+    
+    gene_set_list <- list(c(input$gene3))
+    
+    signature_geneid <- as.character(GSE89403_gene_annot[match(gene_set_list[[1]], GSE89403_gene_annot$Symbol), "GeneID"])
+    gene_set_list <- list(c(signature_geneid))
+    
+    gsvapar <- gsvaParam(as.matrix(GSE89403_counts_vst), 
+                         gene_set_list, 
+                         maxDiff = TRUE, 
+                         minSize = 1)
+    
+    gsva_res <- gsva(gsvapar) #dont need to transpose because next line takes row 1 anyway
+    
+    
+    all(row.names(gsva_res) == row.names(GSE89403_clinical))
+    
+    boxplot_gsva <- as.data.frame(cbind(gsva = t(gsva_res),
+                                        group = GSE89403_clinical$group))
+    
+    
+    
+    gsva_theme <- theme(axis.title = element_text(size = 24),
+                        axis.text = element_text(size = 24),
+                        title = element_text(size = 20),
+                        legend.position = "None") 
+    
+    
+    
+    
+    my_comparisons <- combn(unique(GSE89403_clinical$group), 2, simplify = FALSE)
+    
+    
+    x_order <- c("Healthy", "Lungdx_ctrl", "MTP_ctrl", "TB_DX", "TB_day_7", "TB_week_4", "TB_week_24")
+    
+    boxplot_gsva$group <- factor(boxplot_gsva$group, levels = x_order)
+    boxplot_gsva$V1 <- as.numeric(boxplot_gsva$V1)
+    
+    stat.table.gsva <- boxplot_gsva  %>%
+      wilcox_test(V1 ~ group,
+                  paired = FALSE) %>%
+      add_xy_position(x = "group")
+    
+    stat.table.gsva <- stat.table.gsva[which(stat.table.gsva$p < 0.05),]
+    lowest_bracket <- max(boxplot_gsva$V1) + 0.05*(max(boxplot_gsva$V1))
+    stat.table.gsva$y.position <- seq(lowest_bracket, by= 0.1, length.out = nrow(stat.table.gsva))
+    
+    
+    
+    #MAKE BOXPLOT ------------------------------------------------------------------------------------------------------------
+    boxplot_public_validation <- ggplot(boxplot_gsva, aes(
+      x = factor(group, level = x_order),
+      # x = factor(group),
+      y = as.numeric(boxplot_gsva[,1]),
+      group = group)) +
+      
+      theme_bw()+
+      
+      gsva_theme +
+      
+      geom_boxplot(position = position_dodge(1)) +
+      
+      geom_jitter(aes(color = group),
+                  alpha = 0.5,
+                  size = 2.5, 
+                  width = 0.3) +
+      
+      
+      stat_pvalue_manual(stat.table.gsva,
+                         label = "p",
+                         tip.length = 0.01,
+                         size = 4)+
+      stat_summary(fun.y = mean, fill = "red",
+                   geom = "point", shape = 21, size =4,
+                   show.legend = TRUE) +
+      # # scale_x_discrete(labels= c("Control" = "Control", "Mild.moderate.COPD" = "mCOPD", "Severe.COPD" = "sCOPD"))+
+      # scale_y_continuous(expand = c(0.07, 0, 0.07, 0)) +
+      
+      theme(axis.text.x = element_text(size = 15))+
+      labs(title = paste0("Signature Validation: GSE89403"),
+           caption = paste("Signature:", 
+                           paste(c(input$gene3), collapse = " "), 
+                           "\n",
+                           "Only p<0.5 from Mann-Whitney U test shown")) +
+      ylab (label = "Enrichment Score") +
+      xlab (label = "Disease")
+    
+    
+    
+    ## 4) Validation  ------------------------------------------------------
+    
+    
+    # --- PAIRWISE ROC ANALYSIS --- #
+    # Define all pairwise comparisons of interest
+    pairwise_comparisons <- list(
+      c("Healthy", "TB_DX"),
+      c("MTP_ctrl", "TB_DX"),
+      c("TB_DX", "TB_day_7"),
+      c("TB_DX", "TB_week_4"),
+      c("TB_DX", "TB_week_24"),
+      c("Healthy", "TB_week_24"),
+      c("MTP_ctrl", "TB_week_24")
+    )
+    
+    # Create a list to store AUC values and roc objects
+    GSE89403_res_table <- data.frame()
+    GSE89403_roc_objects <- list()
+    
+    # Loop through each pairwise comparison
+    for (pair in pairwise_comparisons) {
+      
+      group1 <- pair[1]
+      group2 <- pair[2]
+      
+      # Subset data to omly include the 2 rgroups of interest
+      subset_clinical <- GSE89403_clinical[GSE89403_clinical$group %in% c(group1,group2),]
+      subset_counts <- GSE89403_counts_vst[, row.names(subset_clinical)]
+      
+      subset_clinical$group <- factor(subset_clinical$group, levels = c(group1, group2))
+      
+      # GSVA
+      gene_set_list <- list(c(input$gene3))
+      signature_geneid <- as.character(GSE89403_gene_annot[match(gene_set_list[[1]], GSE89403_gene_annot$Symbol), "GeneID"])
+      gene_set_list <- list(c(signature_geneid))
+      
+      gsvapar <- gsvaParam(as.matrix(subset_counts), #GSE89403_counts_vst$E is the same
+                           gene_set_list, 
+                           maxDiff = TRUE, 
+                           minSize = 1)
+      
+      gsva_res <- gsva(gsvapar)
+      
+      glm_data <- data.frame(Score = gsva_res[1,], Group = subset_clinical$group)
+      
+      table(glm_data$Group)
+      
+      
+      glm_data$Group <- factor(glm_data$Group, levels = c(group1, group2))
+      glm_model <- glm(Group ~ Score, data = glm_data, family = binomial) 
+      
+      test_probs <- predict(glm_model, type = "response")
+      
+      roc_obj <- roc(glm_data$Group, test_probs)
+      
+      
+      auc_ci <- ci.auc(roc_obj)  #default 95% CI is computed with 2000 stratified bootstrap replicates.
+      
+      #  The "optimal threshold" refers to the point on the ROC curve where you achieve the best balance between sensitivity and specificity, or where the classifier is most effective at distinguishing between the positive and negative classes.
+      optimal_threshold_coords <- coords(roc_obj, "best", ret = c("threshold", "sensitivity", "specificity", best.method = "youden"))
+      
+      GSE89403_res_current <-cbind(
+        comparison = paste0(group1,"vs",group2),
+        samples_group1 = paste(group1, "=", sum(glm_data$Group == group1)),
+        samples_group2 = paste(group2, "=", sum(glm_data$Group == group2)),
+        auc = auc(roc_obj),
+        ci = paste0(round(as.numeric(auc_ci[1]),2), "-", round(as.numeric(auc_ci[3]),2)),
+        sensitivity = optimal_threshold_coords$sensitivity, 
+        specificity = optimal_threshold_coords$specificity
+        
+      )
+      
+      GSE89403_res_table <- rbind(GSE89403_res_table, GSE89403_res_current)
+      
+      GSE89403_roc_objects[[paste0(group1,"vs",group2)]] <- roc_obj
+      
+    }
+    
+    
+    
+    
+    ## 5) ROC Curves -----------------------------------------------------------
+    
+    # Convert ROC data to a format suitable for ggplot
+    roc_data <- do.call(rbind, lapply(names(GSE89403_roc_objects), function(comparison) {
+      data.frame(
+        TPR = rev(GSE89403_roc_objects[[comparison]]$sensitivities),  # True Positive Rate
+        FPR = rev(1 - GSE89403_roc_objects[[comparison]]$specificities),  # False Positive Rate
+        Comparison = comparison,
+        auc = rev(GSE89403_roc_objects[[comparison]]$auc)
+      )
+    }))
+    
+    roc_data$Comparison <- factor(roc_data$Comparison, levels = c(
+      "HealthyvsTB_DX",
+      "MTP_ctrlvsTB_DX",
+      "TB_DXvsTB_day_7",
+      "TB_DXvsTB_week_4",
+      "TB_DXvsTB_week_24",
+      "HealthyvsTB_week_24",
+      "MTP_ctrlvsTB_week_24"
+    ))
+    
+    roc_data$Comparison_plotlabel <- roc_data$Comparison
+    
+    levels(roc_data$Comparison_plotlabel) <-  c(
+      "Healthy vs TB_T0",
+      "MTP Controls vs TB_T0",
+      "TB_T0 vs TB_Day7",
+      "TB_T0 vs TB_Wk4",
+      "TB_T0 vs TB_Wk24",
+      "Healthy vs TB_Wk24",
+      "MTP Controls vs TB_Wk24"
+    )  
+    
+    roc_data$ci <- GSE89403_res_table[match(roc_data$Comparison, GSE89403_res_table$comparison), "ci"]
+    
+    roc_data$legend <- paste0(roc_data$Comparison_plotlabel,": \n AUC = ", 
+                              round(roc_data$auc, 2), " (", roc_data$ci, ")")
+    
+    
+    
+    
+    # Make Disease ROC ------------------------------------------------------------------------------------------------------------
+    disease_roc_data <- roc_data[which(roc_data$Comparison == "HealthyvsTB_DX" | 
+                                         roc_data$Comparison == "MTP_ctrlvsTB_DX" |
+                                         roc_data$Comparison == "HealthyvsTB_week_24" |
+                                         roc_data$Comparison == "MTP_ctrlvsTB_week_24" ),]
+    
+    disease_roc <- ggplot(disease_roc_data, aes(x = FPR, y = TPR, color = legend)) +
+      geom_line(size = 1.2) +
+      theme_bw() +
+      geom_abline(slope = 1, intercept = 0, linetype = "dashed", color = "black")  +
+      guides(colour = guide_legend(nrow = 2)) +
+      theme(legend.position = "bottom",
+            axis.title = element_text(size = 24),
+            axis.text = element_text(size = 24),
+            legend.text = element_text(size = 16),
+            title = element_text(size = 20)) +
+      labs(
+        title = "ROC - Control vs TB",
+        x = "FPR (1 - Specificity)",
+        y = "TPR (Sensitivity)",
+        color = "Comparison",
+        caption = paste("Signature:", 
+                        paste(c(input$gene3), collapse = " "), 
+                        "\n",
+                        "Only p<0.5 from Mann-Whitney U test shown")) 
+    
+    
+    # Make Timepoint ROC ------------------------------------------------------------------------------------------------------------
+    timepoint_roc_data <- roc_data[which(roc_data$Comparison == "TB_DXvsTB_day_7" | 
+                                           roc_data$Comparison == "TB_DXvsTB_week_4" |
+                                           roc_data$Comparison == "TB_DXvsTB_week_24" ), ]
+    
+    timepoint_roc <- ggplot(timepoint_roc_data, aes(x = FPR, y = TPR, color = legend)) +
+      geom_line(size = 1.2) +
+      theme_bw() +
+      geom_abline(slope = 1, intercept = 0, linetype = "dashed", color = "black")  +
+      guides(colour = guide_legend(nrow = 2)) +
+      theme(legend.position = "bottom",
+            axis.title = element_text(size = 24),
+            axis.text = element_text(size = 24),
+            legend.text = element_text(size = 16),
+            title = element_text(size = 20)) +
+      labs(
+        title = "ROC - TB treatment timepoints",
+        x = "FPR (1 - Specificity)",
+        y = "TPR(Sensitivity)",
+        color = "Comparison",
+        caption = paste("Signature:", 
+                        paste(c(input$gene3), collapse = " "), 
+                        "\n",
+                        "Only p<0.5 from Mann-Whitney U test shown"))
+    
+    #Save all plots to the empty reactive we made earlier ------------------------------------------------------------------------------------------
+    validation_all_plots(list(
+      boxplot = boxplot_public_validation,
+      disease_roc = disease_roc,
+      timepoint_roc = timepoint_roc))
+    
+  }) #close observeEvent
+  
+  
+
+  
+  #Generate plots (the above code should be saved to the reactiveVal now. and should only be fully rerun if input$gene3 changes)
   output$validation<-
   renderPlot({
-    
     validate(need(input$gene3, 'Choose genes!')) #the message "Choose genes!" shows if no genes have been picked
     #req(input$gene) #can use this line too - will just show blank screen, no error message or chosen message shown
     #without these, error message shows up if no genes are picked
     # gene_set_list <- list(c("IFITM1","CD274","TAP1","GBP5","GBP2","S100A8","FCGR1CP"))
-    
-    
-    gene_set_list <- list(c(input$gene3))
+    req(validation_all_plots()) 
+    listofplots <- validation_all_plots()
 
-signature_geneid <- as.character(GSE89403_gene_annot[match(gene_set_list[[1]], GSE89403_gene_annot$Symbol), "GeneID"])
-gene_set_list <- list(c(signature_geneid))
-
-gsvapar <- gsvaParam(as.matrix(GSE89403_counts_vst), 
-                     gene_set_list, 
-                     maxDiff = TRUE, 
-                     minSize = 1)
-
-gsva_res <- gsva(gsvapar) #dont need to transpose because next line takes row 1 anyway
-
-
-all(row.names(gsva_res) == row.names(GSE89403_clinical))
-
-boxplot_gsva <- as.data.frame(cbind(gsva = t(gsva_res),
-                                    group = GSE89403_clinical$group))
-
-
-
-gsva_theme <- theme(axis.title = element_text(size = 24),
-                    axis.text = element_text(size = 24),
-                    title = element_text(size = 20),
-                    legend.position = "None") 
-  
-
-
-
-my_comparisons <- combn(unique(GSE89403_clinical$group), 2, simplify = FALSE)
-
-
-x_order <- c("Healthy", "Lungdx_ctrl", "MTP_ctrl", "TB_DX", "TB_day_7", "TB_week_4", "TB_week_24")
-
-boxplot_gsva$group <- factor(boxplot_gsva$group, levels = x_order)
-boxplot_gsva$V1 <- as.numeric(boxplot_gsva$V1)
-
-stat.table.gsva <- boxplot_gsva  %>%
-  wilcox_test(V1 ~ group,
-              paired = FALSE) %>%
-  add_xy_position(x = "group")
-
-stat.table.gsva <- stat.table.gsva[which(stat.table.gsva$p < 0.05),]
-lowest_bracket <- max(boxplot_gsva$V1) + 0.05*(max(boxplot_gsva$V1))
-stat.table.gsva$y.position <- seq(lowest_bracket, by= 0.1, length.out = nrow(stat.table.gsva))
-
-
-
-  
-boxplot_public_validation <- ggplot(boxplot_gsva, aes(
-  x = factor(group, level = x_order),
-  # x = factor(group),
-  y = as.numeric(boxplot_gsva[,1]),
-  group = group)) +
-  
-  theme_bw()+
-  
-  gsva_theme +
-  
-  geom_boxplot(position = position_dodge(1)) +
-  
-  geom_jitter(aes(color = group),
-              alpha = 0.5,
-              size = 2.5, 
-              width = 0.3) +
-  
-  
-  stat_pvalue_manual(stat.table.gsva,
-                     label = "p",
-                     tip.length = 0.01,
-                     size = 4)+
-  stat_summary(fun.y = mean, fill = "red",
-               geom = "point", shape = 21, size =4,
-               show.legend = TRUE) +
-  # # scale_x_discrete(labels= c("Control" = "Control", "Mild.moderate.COPD" = "mCOPD", "Severe.COPD" = "sCOPD"))+
-  # scale_y_continuous(expand = c(0.07, 0, 0.07, 0)) +
-  
-  theme(axis.text.x = element_text(size = 15))+
-  labs(title = paste0("Signature Validation: GSE89403"),
-       caption = paste("Signature:", 
-                       paste(c(input$gene3), collapse = " "), 
-                       "\n",
-                       "Only p<0.5 from Mann-Whitney U test shown")) +
-  ylab (label = "Enrichment Score") +
-  xlab (label = "Disease")
-
-
-
-## 4) Validation  ------------------------------------------------------
-
-
-# --- PAIRWISE ROC ANALYSIS --- #
-# Define all pairwise comparisons of interest
-pairwise_comparisons <- list(
-  c("Healthy", "TB_DX"),
-  c("MTP_ctrl", "TB_DX"),
-  c("TB_DX", "TB_day_7"),
-  c("TB_DX", "TB_week_4"),
-  c("TB_DX", "TB_week_24"),
-  c("Healthy", "TB_week_24"),
-  c("MTP_ctrl", "TB_week_24")
-)
-
-# Create a list to store AUC values and roc objects
-GSE89403_res_table <- data.frame()
-GSE89403_roc_objects <- list()
-
-# Loop through each pairwise comparison
-for (pair in pairwise_comparisons) {
-  
-  group1 <- pair[1]
-  group2 <- pair[2]
-  
-  # Subset data to omly include the 2 rgroups of interest
-  subset_clinical <- GSE89403_clinical[GSE89403_clinical$group %in% c(group1,group2),]
-  subset_counts <- GSE89403_counts_vst[, row.names(subset_clinical)]
-  
-  subset_clinical$group <- factor(subset_clinical$group, levels = c(group1, group2))
-  
-  # GSVA
-  gene_set_list <- list(c(input$gene3))
-  signature_geneid <- as.character(GSE89403_gene_annot[match(gene_set_list[[1]], GSE89403_gene_annot$Symbol), "GeneID"])
-  gene_set_list <- list(c(signature_geneid))
-  
-  gsvapar <- gsvaParam(as.matrix(subset_counts), #GSE89403_counts_vst$E is the same
-                       gene_set_list, 
-                       maxDiff = TRUE, 
-                       minSize = 1)
-  
-  gsva_res <- gsva(gsvapar)
-  
-  glm_data <- data.frame(Score = gsva_res[1,], Group = subset_clinical$group)
-  
-  table(glm_data$Group)
-  
-  
-  glm_data$Group <- factor(glm_data$Group, levels = c(group1, group2))
-  glm_model <- glm(Group ~ Score, data = glm_data, family = binomial) 
-  
-  test_probs <- predict(glm_model, type = "response")
-  
-  roc_obj <- roc(glm_data$Group, test_probs)
-  
-
-  auc_ci <- ci.auc(roc_obj)  #default 95% CI is computed with 2000 stratified bootstrap replicates.
-  
-  #  The "optimal threshold" refers to the point on the ROC curve where you achieve the best balance between sensitivity and specificity, or where the classifier is most effective at distinguishing between the positive and negative classes.
-  optimal_threshold_coords <- coords(roc_obj, "best", ret = c("threshold", "sensitivity", "specificity", best.method = "youden"))
-  
-  GSE89403_res_current <-cbind(
-    comparison = paste0(group1,"vs",group2),
-    samples_group1 = paste(group1, "=", sum(glm_data$Group == group1)),
-    samples_group2 = paste(group2, "=", sum(glm_data$Group == group2)),
-    auc = auc(roc_obj),
-    ci = paste0(round(as.numeric(auc_ci[1]),2), "-", round(as.numeric(auc_ci[3]),2)),
-    sensitivity = optimal_threshold_coords$sensitivity, 
-    specificity = optimal_threshold_coords$specificity
-    
-  )
-  
-  GSE89403_res_table <- rbind(GSE89403_res_table, GSE89403_res_current)
-  
-  GSE89403_roc_objects[[paste0(group1,"vs",group2)]] <- roc_obj
-
-}
-  
-
-
-
-## 5) ROC Curves -----------------------------------------------------------
-
- # Convert ROC data to a format suitable for ggplot
- roc_data <- do.call(rbind, lapply(names(GSE89403_roc_objects), function(comparison) {
-   data.frame(
-     TPR = rev(GSE89403_roc_objects[[comparison]]$sensitivities),  # True Positive Rate
-     FPR = rev(1 - GSE89403_roc_objects[[comparison]]$specificities),  # False Positive Rate
-     Comparison = comparison,
-     auc = rev(GSE89403_roc_objects[[comparison]]$auc)
-   )
- }))
- 
- roc_data$Comparison <- factor(roc_data$Comparison, levels = c(
-   "HealthyvsTB_DX",
-   "MTP_ctrlvsTB_DX",
-   "TB_DXvsTB_day_7",
-   "TB_DXvsTB_week_4",
-   "TB_DXvsTB_week_24",
-   "HealthyvsTB_week_24",
-   "MTP_ctrlvsTB_week_24"
- ))
- 
- roc_data$Comparison_plotlabel <- roc_data$Comparison
- 
- levels(roc_data$Comparison_plotlabel) <-  c(
-   "Healthy vs TB_T0",
-   "MTP Controls vs TB_T0",
-   "TB_T0 vs TB_Day7",
-   "TB_T0 vs TB_Wk4",
-   "TB_T0 vs TB_Wk24",
-   "Healthy vs TB_Wk24",
-   "MTP Controls vs TB_Wk24"
- )  
- 
- roc_data$ci <- GSE89403_res_table[match(roc_data$Comparison, GSE89403_res_table$comparison), "ci"]
-
- roc_data$legend <- paste0(roc_data$Comparison_plotlabel,": \n AUC = ", 
-                                  round(roc_data$auc, 2), " (", roc_data$ci, ")")
-
- 
-
- 
- # Disease ROC 
- disease_roc_data <- roc_data[which(roc_data$Comparison == "HealthyvsTB_DX" | 
-                                      roc_data$Comparison == "MTP_ctrlvsTB_DX" |
-                                      roc_data$Comparison == "HealthyvsTB_week_24" |
-                                      roc_data$Comparison == "MTP_ctrlvsTB_week_24" ),]
- 
- disease_roc <- ggplot(disease_roc_data, aes(x = FPR, y = TPR, color = legend)) +
-   geom_line(size = 1.2) +
-   theme_bw() +
-   geom_abline(slope = 1, intercept = 0, linetype = "dashed", color = "black")  +
-   guides(colour = guide_legend(nrow = 2)) +
-   theme(legend.position = "bottom",
-         axis.title = element_text(size = 24),
-         axis.text = element_text(size = 24),
-         legend.text = element_text(size = 16),
-         title = element_text(size = 20)) +
-   labs(
-     title = "ROC - Control vs TB",
-     x = "FPR (1 - Specificity)",
-     y = "TPR (Sensitivity)",
-     color = "Comparison",
-     caption = paste("Signature:", 
-                       paste(c(input$gene3), collapse = " "), 
-                       "\n",
-                       "Only p<0.5 from Mann-Whitney U test shown")) 
- 
-
- # Timepoint ROC
- timepoint_roc_data <- roc_data[which(roc_data$Comparison == "TB_DXvsTB_day_7" | 
-                                      roc_data$Comparison == "TB_DXvsTB_week_4" |
-                                      roc_data$Comparison == "TB_DXvsTB_week_24" ), ]
- 
- timepoint_roc <- ggplot(timepoint_roc_data, aes(x = FPR, y = TPR, color = legend)) +
-   geom_line(size = 1.2) +
-   theme_bw() +
-   geom_abline(slope = 1, intercept = 0, linetype = "dashed", color = "black")  +
-   guides(colour = guide_legend(nrow = 2)) +
-   theme(legend.position = "bottom",
-         axis.title = element_text(size = 24),
-         axis.text = element_text(size = 24),
-         legend.text = element_text(size = 16),
-         title = element_text(size = 20)) +
-   labs(
-     title = "ROC - TB treatment timepoints",
-     x = "FPR (1 - Specificity)",
-     y = "TPR(Sensitivity)",
-     color = "Comparison",
-     caption = paste("Signature:", 
-                       paste(c(input$gene3), collapse = " "), 
-                       "\n",
-                       "Only p<0.5 from Mann-Whitney U test shown"))
- 
- 
  if(input$validationshow == "Boxplot of GSVA scores"){
-   print(boxplot_public_validation)
+   print(listofplots[["boxplot"]])
  }
  if(input$validationshow == "ROC Curves (Disease)"){
-   print(disease_roc)
+   print(listofplots[["disease_roc"]])
  }
  
  if(input$validationshow == "ROC Curves (Timepoint)"){
-   print(timepoint_roc)
+   print(listofplots[["timepoint_roc"]])
  }
 
  
