@@ -35,24 +35,6 @@ library(heatmap3)
 library(pROC)
 library(stringr)
 
-# remove.packages("shiny")
-# install.packages("shiny", type = "source")
-# 
-# install.packages("readxl")
-# install.packages("bslib")
-# install.packages("DT")
-# install.packages("ggplot2")
-# install.packages("ggprism")
-# install.packages("ggpubr")
-# install.packages("ggrepel")
-# install.packages("gplots")
-# install.packages("tidyverse")
-# install.packages("rstatix")
-# install.packages("shinydashboard")
-# BiocManager::install("GSVA")
-# install.packages("ggfortify")
-# install.packages("heatmap3")
-
 
 
 # ================================================================================== #

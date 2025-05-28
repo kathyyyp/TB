@@ -30,6 +30,7 @@ library("ggpubr")
 library("DESeq2")
 library("limma")
 library("stringr")
+library("tidyverse")
 
 # ================================================================================== #
 # B. SET UP DIRECTORY & OUTPUT PATHS ===============================================
@@ -120,8 +121,10 @@ write.table(clinical, file.path("clinical.txt"))
 
 setwd(file.path(my_directory,"TB", "data", "public", this.accession.no))
 
-write.table(counts_vst, file.path(my_directory,"TB", "shiny", "data", "public", this.accession.no, "counts_vst.txt"))
-write.table(counts_vst, file.path(my_directory,"TB", "shiny", "data", "public", this.accession.no, "clinical.txt"))
+shiny.data.dir <- file.path(my_directory,"TB", "shiny", "data", "public", this.accession.no)
+if(!exists(shiny.data.dir)) dir.create(shiny.data.dir, recursive = TRUE)
+write.table(counts_vst, file.path(shiny.data.dir, "counts_vst.txt"))
+write.table(clinical, file.path(shiny.data.dir, "clinical.txt"))
 
 ## 3) GSVA and boxplot to see comparisons ---------------------------
 gene_set_list <- list(c("IFITM1","CD274","TAP1","GBP5","GBP2","S100A8","FCGR1CP"))
@@ -148,7 +151,7 @@ gsva_theme <- theme(axis.title = element_text(size = 24),
                     axis.text = element_text(size = 24),
                     title = element_text(size = 20),
                     legend.position = "None") 
-  
+
 
 
 
@@ -220,7 +223,7 @@ ggsave(boxplotfinal2, filename = file.path(this.figure.dir, paste0("gsva_plot_",
 ## 4) Validation  ------------------------------------------------------
 # Options for ROC
 ## a) multiclass.roc(): This is a one-vs-rest approach (macro-average). Where one group i selected as the refernece/positive class and the rest are grouped into a negative class. It takes turns with each group being the reference class, giving us AUCs for each reference vs rest model. Then finally it calculates the average of the AUCs, a single value to classify overall performance
-      # probbly not great because if our one vs rest model is healthy vs rest, that means rest includes TB day 7, week 4 and week 24. TB week 24 would theoretically have expression profiles that are closer to healthy because patients have been treated. so the model would be confused
+# probbly not great because if our one vs rest model is healthy vs rest, that means rest includes TB day 7, week 4 and week 24. TB week 24 would theoretically have expression profiles that are closer to healthy because patients have been treated. so the model would be confused
 ## b) Pairwise ROC: run one vs one (binary) ROC fr each pair of timepoints - seperate binary logistic regression models for each comparison
 
 #Decision : Use pairwise ROC! multiclass won't work well in this scenario (best if the variables aren't longitudinal / are unrelated)
@@ -299,115 +302,115 @@ for (pair in pairwise_comparisons) {
   GSE89403_res_table <- rbind(GSE89403_res_table, GSE89403_res_current)
   
   GSE89403_roc_objects[[paste0(group1,"vs",group2)]] <- roc_obj
-
+  
 }
-  
- saveRDS(GSE89403_roc_objects, file.path(this.accession.res.dir, paste0(this.accession.no, "_roc_objects.rds")))
- write.csv(GSE89403_res_table, file.path(this.accession.res.dir, paste0(this.accession.no,"_res_table.csv")))
-  
+
+saveRDS(GSE89403_roc_objects, file.path(this.accession.res.dir, paste0(this.accession.no, "_roc_objects.rds")))
+write.csv(GSE89403_res_table, file.path(this.accession.res.dir, paste0(this.accession.no,"_res_table.csv")))
+
 
 
 ## 5) ROC Curves -----------------------------------------------------------
 
- # Convert ROC data to a format suitable for ggplot
- roc_data <- do.call(rbind, lapply(names(GSE89403_roc_objects), function(comparison) {
-   data.frame(
-     TPR = rev(GSE89403_roc_objects[[comparison]]$sensitivities),  # True Positive Rate
-     FPR = rev(1 - GSE89403_roc_objects[[comparison]]$specificities),  # False Positive Rate
-     Comparison = comparison,
-     auc = rev(GSE89403_roc_objects[[comparison]]$auc)
-   )
- }))
- 
- roc_data$Comparison <- factor(roc_data$Comparison, levels = c(
-   "HealthyvsTB_DX",
-   "MTP_ctrlvsTB_DX",
-   "TB_DXvsTB_day_7",
-   "TB_DXvsTB_week_4",
-   "TB_DXvsTB_week_24",
-   "HealthyvsTB_week_24",
-   "MTP_ctrlvsTB_week_24"
- ))
- 
- roc_data$Comparison_plotlabel <- roc_data$Comparison
- 
- levels(roc_data$Comparison_plotlabel) <-  c(
-   "Healthy vs TB_T0",
-   "MTP Controls vs TB_T0",
-   "TB_T0 vs TB_Day7",
-   "TB_T0 vs TB_Wk4",
-   "TB_T0 vs TB_Wk24",
-   "Healthy vs TB_Wk24",
-   "MTP Controls vs TB_Wk24"
- )  
- 
- roc_data$ci <- GSE89403_res_table[match(roc_data$Comparison, GSE89403_res_table$comparison), "ci"]
+# Convert ROC data to a format suitable for ggplot
+roc_data <- do.call(rbind, lapply(names(GSE89403_roc_objects), function(comparison) {
+  data.frame(
+    TPR = rev(GSE89403_roc_objects[[comparison]]$sensitivities),  # True Positive Rate
+    FPR = rev(1 - GSE89403_roc_objects[[comparison]]$specificities),  # False Positive Rate
+    Comparison = comparison,
+    auc = rev(GSE89403_roc_objects[[comparison]]$auc)
+  )
+}))
 
- roc_data$legend <- paste0(roc_data$Comparison_plotlabel,": \n AUC = ", 
-                                  round(roc_data$auc, 2), " (", roc_data$ci, ")")
+roc_data$Comparison <- factor(roc_data$Comparison, levels = c(
+  "HealthyvsTB_DX",
+  "MTP_ctrlvsTB_DX",
+  "TB_DXvsTB_day_7",
+  "TB_DXvsTB_week_4",
+  "TB_DXvsTB_week_24",
+  "HealthyvsTB_week_24",
+  "MTP_ctrlvsTB_week_24"
+))
 
- 
+roc_data$Comparison_plotlabel <- roc_data$Comparison
 
- 
- # Disease ROC 
- disease_roc_data <- roc_data[which(roc_data$Comparison == "HealthyvsTB_DX" | 
-                                      roc_data$Comparison == "MTP_ctrlvsTB_DX" |
-                                      roc_data$Comparison == "HealthyvsTB_week_24" |
-                                      roc_data$Comparison == "MTP_ctrlvsTB_week_24" ),]
- 
- disease_roc <- ggplot(disease_roc_data, aes(x = FPR, y = TPR, color = legend)) +
-   geom_line(size = 1.2) +
-   theme_bw() +
-   geom_abline(slope = 1, intercept = 0, linetype = "dashed", color = "black")  +
-   guides(colour = guide_legend(nrow = 2)) +
-   theme(legend.position = "bottom",
-         axis.title = element_text(size = 24),
-         axis.text = element_text(size = 24),
-         legend.text = element_text(size = 16),
-         title = element_text(size = 20)) +
-   labs(
-     title = "ROC - Control vs TB",
-     x = "FPR (1 - Specificity)",
-     y = "TPR (Sensitivity)",
-     color = "Comparison",
-     caption = "Signature: IFITM1, CD274, TAP1, GBP5, GBP2, S100A8, FCGR1CP") 
- 
- ggsave(disease_roc, filename = file.path(this.figure.dir, "disease_roc.png"), 
-        width = 3000, 
-        height = 3200, 
-        units = "px")
- 
- # Timepoint ROC
- timepoint_roc_data <- roc_data[which(roc_data$Comparison == "TB_DXvsTB_day_7" | 
-                                      roc_data$Comparison == "TB_DXvsTB_week_4" |
-                                      roc_data$Comparison == "TB_DXvsTB_week_24" ), ]
- 
- timepoint_roc <- ggplot(timepoint_roc_data, aes(x = FPR, y = TPR, color = legend)) +
-   geom_line(size = 1.2) +
-   theme_bw() +
-   geom_abline(slope = 1, intercept = 0, linetype = "dashed", color = "black")  +
-   guides(colour = guide_legend(nrow = 2)) +
-   theme(legend.position = "bottom",
-         axis.title = element_text(size = 24),
-         axis.text = element_text(size = 24),
-         legend.text = element_text(size = 16),
-         title = element_text(size = 20)) +
-   labs(
-     title = "ROC - TB treatment timepoints",
-     x = "FPR (1 - Specificity)",
-     y = "TPR(Sensitivity)",
-     color = "Comparison",
-     caption = "Signature: IFITM1, CD274, TAP1, GBP5, GBP2, S100A8, FCGR1CP")
- 
- 
- ggsave(timepoint_roc, filename = file.path(this.figure.dir, "timepoint_roc.png"), 
-        width = 3000, 
-        height = 3200, 
-        units = "px")
- 
- 
- 
- 
+levels(roc_data$Comparison_plotlabel) <-  c(
+  "Healthy vs TB_T0",
+  "MTP Controls vs TB_T0",
+  "TB_T0 vs TB_Day7",
+  "TB_T0 vs TB_Wk4",
+  "TB_T0 vs TB_Wk24",
+  "Healthy vs TB_Wk24",
+  "MTP Controls vs TB_Wk24"
+)  
+
+roc_data$ci <- GSE89403_res_table[match(roc_data$Comparison, GSE89403_res_table$comparison), "ci"]
+
+roc_data$legend <- paste0(roc_data$Comparison_plotlabel,": \n AUC = ", 
+                          round(roc_data$auc, 2), " (", roc_data$ci, ")")
+
+
+
+
+# Disease ROC 
+disease_roc_data <- roc_data[which(roc_data$Comparison == "HealthyvsTB_DX" | 
+                                     roc_data$Comparison == "MTP_ctrlvsTB_DX" |
+                                     roc_data$Comparison == "HealthyvsTB_week_24" |
+                                     roc_data$Comparison == "MTP_ctrlvsTB_week_24" ),]
+
+disease_roc <- ggplot(disease_roc_data, aes(x = FPR, y = TPR, color = legend)) +
+  geom_line(size = 1.2) +
+  theme_bw() +
+  geom_abline(slope = 1, intercept = 0, linetype = "dashed", color = "black")  +
+  guides(colour = guide_legend(nrow = 2)) +
+  theme(legend.position = "bottom",
+        axis.title = element_text(size = 24),
+        axis.text = element_text(size = 24),
+        legend.text = element_text(size = 16),
+        title = element_text(size = 20)) +
+  labs(
+    title = "ROC - Control vs TB",
+    x = "FPR (1 - Specificity)",
+    y = "TPR (Sensitivity)",
+    color = "Comparison",
+    caption = "Signature: IFITM1, CD274, TAP1, GBP5, GBP2, S100A8, FCGR1CP") 
+
+ggsave(disease_roc, filename = file.path(this.figure.dir, "disease_roc.png"), 
+       width = 3000, 
+       height = 3200, 
+       units = "px")
+
+# Timepoint ROC
+timepoint_roc_data <- roc_data[which(roc_data$Comparison == "TB_DXvsTB_day_7" | 
+                                       roc_data$Comparison == "TB_DXvsTB_week_4" |
+                                       roc_data$Comparison == "TB_DXvsTB_week_24" ), ]
+
+timepoint_roc <- ggplot(timepoint_roc_data, aes(x = FPR, y = TPR, color = legend)) +
+  geom_line(size = 1.2) +
+  theme_bw() +
+  geom_abline(slope = 1, intercept = 0, linetype = "dashed", color = "black")  +
+  guides(colour = guide_legend(nrow = 2)) +
+  theme(legend.position = "bottom",
+        axis.title = element_text(size = 24),
+        axis.text = element_text(size = 24),
+        legend.text = element_text(size = 16),
+        title = element_text(size = 20)) +
+  labs(
+    title = "ROC - TB treatment timepoints",
+    x = "FPR (1 - Specificity)",
+    y = "TPR(Sensitivity)",
+    color = "Comparison",
+    caption = "Signature: IFITM1, CD274, TAP1, GBP5, GBP2, S100A8, FCGR1CP")
+
+
+ggsave(timepoint_roc, filename = file.path(this.figure.dir, "timepoint_roc.png"), 
+       width = 3000, 
+       height = 3200, 
+       units = "px")
+
+
+
+
 
 # GSE193777 -----------------------------------------------------------------------------------------------------------------------------------
 this.accession.no <- "GSE193777"
@@ -1181,7 +1184,7 @@ boxplotfinal2 <- ggplot(boxplot_gsva, aes(
                      label = "p",
                      tip.length = 0.01,
                      size = 7)+
-
+  
   # scale_y_continuous(expand = c(0.07, 0, 0.07, 0)) +
   stat_summary(fun.y = mean, fill = "red",
                geom = "point", shape = 21, size =4,
@@ -1423,7 +1426,7 @@ table(clinical$disease)
 #3) 4 OTHER (Still, Staph, ASLE and pSLE)
 #ASLE (adult systemic lupus erythematosus)
 #pSLE (pediatric SLE) #
-  
+
 # clinical[which(clinical$disease == "healthy control: pSLE "),"group"] <- "healthy_pSLE" 
 
 table(clinical$time)
@@ -1445,8 +1448,8 @@ clinical$group <- ifelse(!is.na(clinical$study),
 
 timepoint_indexes <- which(grepl("months", clinical$time))
 clinical[timepoint_indexes, "group" ] <- paste0(clinical[timepoint_indexes, "group"], 
-                                                             "_",
-                                                             clinical[timepoint_indexes, "time"])
+                                                "_",
+                                                clinical[timepoint_indexes, "time"])
 
 
 if(any(is.na(clinical$disease))){
@@ -1622,47 +1625,47 @@ listof_sep_plots <- list(LON = LON_groups, SA = SA_groups, Other_dx = Other_grou
 i = "SA"
 ## Seperate plots only ------
 for (i in names(listof_sep_plots)){
-boxplot_sep_subset <-  boxplot_gsva[boxplot_gsva$group %in% listof_sep_plots[[i]],]
-
-boxplot_sep <- ggplot(
-  boxplot_sep_subset, 
-  aes(x = factor(group, level = listof_sep_plots[[i]]),
-  y = as.numeric(boxplot_sep_subset[,1]),
-  group = group)) +
+  boxplot_sep_subset <-  boxplot_gsva[boxplot_gsva$group %in% listof_sep_plots[[i]],]
   
-  theme_bw()+
+  boxplot_sep <- ggplot(
+    boxplot_sep_subset, 
+    aes(x = factor(group, level = listof_sep_plots[[i]]),
+        y = as.numeric(boxplot_sep_subset[,1]),
+        group = group)) +
+    
+    theme_bw()+
+    
+    gsva_theme +
+    
+    geom_boxplot(position = position_dodge(1)) +
+    
+    geom_jitter(aes(color = group),
+                alpha = 0.5,
+                size = 2.5, 
+                width = 0.3) +
+    
+    
+    stat_summary(fun.y = mean, fill = "red",
+                 geom = "point", shape = 21, size =4,
+                 show.legend = TRUE) +
+    
+    theme(axis.text.x = element_text(size = 22
+                                     #,
+                                     # angle = 90, 
+                                     # vjust = 0.5,
+                                     # hjust=1
+    ))+
+    labs(title = paste0("Signature Analysis: ", this.accession.no),
+         caption = "Signature: IFITM1, CD274, TAP1, GBP5, GBP2, S100A8, FCGR1CP") +
+    ylab (label = "Enrichment Score") +
+    xlab (label = "Disease")
   
-  gsva_theme +
   
-  geom_boxplot(position = position_dodge(1)) +
+  ggsave(boxplot_sep, filename = file.path(this.figure.dir, paste0("gsva_plot_", i , this.accession.no, ".png")), 
+         width = 2500, 
+         height = 3200, 
+         units = "px" )
   
-  geom_jitter(aes(color = group),
-              alpha = 0.5,
-              size = 2.5, 
-              width = 0.3) +
-  
-
-  stat_summary(fun.y = mean, fill = "red",
-               geom = "point", shape = 21, size =4,
-               show.legend = TRUE) +
-  
-  theme(axis.text.x = element_text(size = 22
-                                   #,
-                                   # angle = 90, 
-                                   # vjust = 0.5,
-                                   # hjust=1
-                                   ))+
-  labs(title = paste0("Signature Analysis: ", this.accession.no),
-       caption = "Signature: IFITM1, CD274, TAP1, GBP5, GBP2, S100A8, FCGR1CP") +
-  ylab (label = "Enrichment Score") +
-  xlab (label = "Disease")
-
-
-ggsave(boxplot_sep, filename = file.path(this.figure.dir, paste0("gsva_plot_", i , this.accession.no, ".png")), 
-       width = 2500, 
-       height = 3200, 
-       units = "px" )
-
 }
 
 ## 4) Validation  ------------------------------------------------------
@@ -1672,7 +1675,7 @@ ggsave(boxplot_sep, filename = file.path(this.figure.dir, paste0("gsva_plot_", i
 pairwise_comparisons <- list(
   #SA TB VS Healthy
   c("SA_LATENT TB", "SA_PTB"),
-
+  
   #SA TB VS Other Dx
   c("SA_PTB", "Still"),
   c("SA_PTB", "ASLE"),
@@ -2235,7 +2238,7 @@ boxplotfinal2 <- ggplot(boxplot_gsva, aes(
   scale_x_discrete(labels = function(x) ifelse(x == "Non-active Sarcoidosis", "Non-active \n Sarcoidosis", 
                                                ifelse(x == "Active Sarcoidosis", "Active \n Sarcoidosis",
                                                       x)))+
-
+  
   theme(axis.text.x = element_text(size = 18))+
   labs(title = paste0("Signature Analysis: ", this.accession.no),
        caption = "Signature: IFITM1, CD274, TAP1, GBP5, GBP2, S100A8, FCGR1CP") +
@@ -2528,10 +2531,10 @@ boxplotfinal2 <- ggplot(boxplot_gsva, aes(
               width = 0.3) +
   
   {if(nrow(stat.table.gsva) >0 )
-  stat_pvalue_manual(stat.table.gsva,
-                     label = "p",
-                     tip.length = 0.01,
-                     size = 7)
+    stat_pvalue_manual(stat.table.gsva,
+                       label = "p",
+                       tip.length = 0.01,
+                       size = 7)
   } + 
   # scale_y_continuous(expand = c(0.07, 0, 0.07, 0)) +
   stat_summary(fun = mean, fill = "red",
@@ -2543,9 +2546,9 @@ boxplotfinal2 <- ggplot(boxplot_gsva, aes(
        caption = "Signature: IFITM1, CD274, TAP1, GBP5, GBP2, S100A8, FCGR1CP"
        # caption = "Signature:S100A8"
        # caption = paste0("Signature: ", paste0(gene_set_list[[1]], collapse = " "))
-
        
-       ) +
+       
+  ) +
   ylab (label = "Enrichment Score") +
   xlab (label = "Disease")
 
@@ -2586,104 +2589,104 @@ gene_annot$Symbol_alias[which(gene_annot$Symbol_alias == "FAM26F")] <- "CALHM6"
 gene_annot$Symbol_alias[which(gene_annot$Symbol_alias == "TRMT2A")] <- "TRAMT2A"
 
 for (i in all_genes){ # for all 46 genes
-# for (i in genesig_D_7){  # for 7 genes 
-    print(i)
-
+  # for (i in genesig_D_7){  # for 7 genes 
+  print(i)
+  
   gene <- gene_annot[which(gene_annot$Symbol_alias == i), "Symbol"]
-
-gene_set_list <- list(c(gene))
-
-signature_geneid <- as.character(gene_annot[match(gene_set_list[[1]], gene_annot$Symbol), "ID"])
-
-if(length(signature_geneid) < 1){
-  print("Missing gene in signature after genone_annot conversion")
-  stop() }
-
-gene_set_list <- list(c(signature_geneid))
-
-gsvapar <- gsvaParam(as.matrix(counts_norm),
-                     gene_set_list,
-                     maxDiff = TRUE,
-                     minSize = 1)
-
-gsva_res <- gsva(gsvapar) #dont need to transpose because next line takes row 1 anyway
-
-
-all(row.names(gsva_res) == row.names(clinical))
-
-boxplot_gsva <- as.data.frame(cbind(gsva = t(gsva_res),
-                                    group = clinical$group))
-
-
-gsva_theme <- theme(axis.title = element_text(size = 24),
-                    axis.text = element_text(size = 24),
-                    title = element_text(size = 20),
-                    legend.position = "None") 
-
-my_comparisons <- combn(unique(clinical$group), 2, simplify = FALSE)
-
-
-x_order <- c("HC", "PTB", "EPTB", "Sarcoidosis")
-
-boxplot_gsva$group <- factor(boxplot_gsva$group, levels = x_order)
-boxplot_gsva$V1 <- as.numeric(boxplot_gsva$V1)
-
-stat.table.gsva <- boxplot_gsva  %>%
-  wilcox_test(V1 ~ group,
-              paired = FALSE) %>%
-  add_xy_position(x = "group") 
-
-stat.table.gsva <- stat.table.gsva[which(stat.table.gsva$p < 0.05),]
-lowest_bracket <- max(boxplot_gsva$V1) + 0.05*(max(boxplot_gsva$V1))
-stat.table.gsva$y.position <- seq(lowest_bracket, by= 0.1, length.out = nrow(stat.table.gsva))
-
-boxplotfinal2 <- ggplot(boxplot_gsva, aes(
-  x = factor(group, level = x_order),
-  y = as.numeric(boxplot_gsva[,1]),
-  group = group)) +
   
-  theme_bw()+
+  gene_set_list <- list(c(gene))
   
-  gsva_theme +
+  signature_geneid <- as.character(gene_annot[match(gene_set_list[[1]], gene_annot$Symbol), "ID"])
   
-  geom_boxplot(position = position_dodge(1)) +
+  if(length(signature_geneid) < 1){
+    print("Missing gene in signature after genone_annot conversion")
+    stop() }
   
-  geom_jitter(aes(color = group),
-              alpha = 0.5,
-              size = 2.5, 
-              width = 0.3) +
+  gene_set_list <- list(c(signature_geneid))
   
-  {if(nrow(stat.table.gsva) >0 )
-  stat_pvalue_manual(stat.table.gsva,
-                     label = "p",
-                     tip.length = 0.01,
-                     size = 7)
-  } + 
-  # scale_y_continuous(expand = c(0.07, 0, 0.07, 0)) +
-  stat_summary(fun = mean, fill = "red",
-               geom = "point", shape = 21, size =4,
-               show.legend = TRUE) +
+  gsvapar <- gsvaParam(as.matrix(counts_norm),
+                       gene_set_list,
+                       maxDiff = TRUE,
+                       minSize = 1)
   
-  theme(axis.text.x = element_text(size = 18))+
-  labs(title = paste0("Signature Analysis: ", this.accession.no),
-       # caption = paste0("Signature: ", paste0(i))
-       caption = paste0("Signature: ", paste(i, tT_TBT0vsHCT0[i, "legend"]))
-       ) +
-  ylab (label = "Enrichment Score") +
-  xlab (label = "Disease")
-
-
-# genesig_D_7
-# ggsave(boxplotfinal2, filename = file.path(this.figure.dir, paste0("gsva_plot_", this.accession.no, "_", i,".png")), 
-#        width = 3600, 
-#        height = 3200, 
-#        units = "px" )
-
-# all 46 genes
-ggsave(boxplotfinal2, filename = file.path(this.figure.dir, "boxplots_all_46_genes", paste0("gsva_plot_", this.accession.no, "_", i,".png")), 
-       width = 3600, 
-       height = 3200, 
-       units = "px" )
+  gsva_res <- gsva(gsvapar) #dont need to transpose because next line takes row 1 anyway
+  
+  
+  all(row.names(gsva_res) == row.names(clinical))
+  
+  boxplot_gsva <- as.data.frame(cbind(gsva = t(gsva_res),
+                                      group = clinical$group))
+  
+  
+  gsva_theme <- theme(axis.title = element_text(size = 24),
+                      axis.text = element_text(size = 24),
+                      title = element_text(size = 20),
+                      legend.position = "None") 
+  
+  my_comparisons <- combn(unique(clinical$group), 2, simplify = FALSE)
+  
+  
+  x_order <- c("HC", "PTB", "EPTB", "Sarcoidosis")
+  
+  boxplot_gsva$group <- factor(boxplot_gsva$group, levels = x_order)
+  boxplot_gsva$V1 <- as.numeric(boxplot_gsva$V1)
+  
+  stat.table.gsva <- boxplot_gsva  %>%
+    wilcox_test(V1 ~ group,
+                paired = FALSE) %>%
+    add_xy_position(x = "group") 
+  
+  stat.table.gsva <- stat.table.gsva[which(stat.table.gsva$p < 0.05),]
+  lowest_bracket <- max(boxplot_gsva$V1) + 0.05*(max(boxplot_gsva$V1))
+  stat.table.gsva$y.position <- seq(lowest_bracket, by= 0.1, length.out = nrow(stat.table.gsva))
+  
+  boxplotfinal2 <- ggplot(boxplot_gsva, aes(
+    x = factor(group, level = x_order),
+    y = as.numeric(boxplot_gsva[,1]),
+    group = group)) +
+    
+    theme_bw()+
+    
+    gsva_theme +
+    
+    geom_boxplot(position = position_dodge(1)) +
+    
+    geom_jitter(aes(color = group),
+                alpha = 0.5,
+                size = 2.5, 
+                width = 0.3) +
+    
+    {if(nrow(stat.table.gsva) >0 )
+      stat_pvalue_manual(stat.table.gsva,
+                         label = "p",
+                         tip.length = 0.01,
+                         size = 7)
+    } + 
+    # scale_y_continuous(expand = c(0.07, 0, 0.07, 0)) +
+    stat_summary(fun = mean, fill = "red",
+                 geom = "point", shape = 21, size =4,
+                 show.legend = TRUE) +
+    
+    theme(axis.text.x = element_text(size = 18))+
+    labs(title = paste0("Signature Analysis: ", this.accession.no),
+         # caption = paste0("Signature: ", paste0(i))
+         caption = paste0("Signature: ", paste(i, tT_TBT0vsHCT0[i, "legend"]))
+    ) +
+    ylab (label = "Enrichment Score") +
+    xlab (label = "Disease")
+  
+  
+  # genesig_D_7
+  # ggsave(boxplotfinal2, filename = file.path(this.figure.dir, paste0("gsva_plot_", this.accession.no, "_", i,".png")), 
+  #        width = 3600, 
+  #        height = 3200, 
+  #        units = "px" )
+  
+  # all 46 genes
+  ggsave(boxplotfinal2, filename = file.path(this.figure.dir, "boxplots_all_46_genes", paste0("gsva_plot_", this.accession.no, "_", i,".png")), 
+         width = 3600, 
+         height = 3200, 
+         units = "px" )
 }
 
 
@@ -2834,18 +2837,18 @@ if(!exists(figures.dir)) dir.create(figures.dir)
 
 
 clinical_de <- raw_metadata[,c("geo_accession",
-                                "title",
-                                "disease.state.ch1",
-                                "gender.ch1",
-                                "age.ch1",
-                                "ethnicity.ch1")]
+                               "title",
+                               "disease.state.ch1",
+                               "gender.ch1",
+                               "age.ch1",
+                               "ethnicity.ch1")]
 
 colnames(clinical_de) <- c("sample_id",
-                            "title",
-                            "disease",
-                            "sex",
-                            "age",
-                            "ethnicity")
+                           "title",
+                           "disease",
+                           "sex",
+                           "age",
+                           "ethnicity")
 
 clinical_de$group <- clinical_de$disease
 clinical_de[which(clinical_de$disease == "Sarcoid"), "group"] <- "Sarcoidosis"
@@ -2873,9 +2876,9 @@ colnames(design)[1:4] <- levels(as.factor(clinical_de$group))
 #fit a linear model to each gene
 fit <- lmFit(counts_norm,
              design)
-             # ,
-             # block = clinical_de$study.id, 
-             # correlation = corfit$consensus)
+# ,
+# block = clinical_de$study.id, 
+# correlation = corfit$consensus)
 
 ##Specify columns to compare
 cont.matrix <- makeContrasts(
@@ -2890,13 +2893,13 @@ cont.matrix <- makeContrasts(
 
 
 nameconvert <- as.data.frame(cbind(name = colnames(cont.matrix),
-                     contrast = c(
-                       "PTB - Sarcoidosis",
-                       "EPTB - Sarcoidosis",
-                       "PTB - HC",
-                       "EPTB - HC",
-                       "Sarcoidosis - HC"
-                     )))
+                                   contrast = c(
+                                     "PTB - Sarcoidosis",
+                                     "EPTB - Sarcoidosis",
+                                     "PTB - HC",
+                                     "EPTB - HC",
+                                     "Sarcoidosis - HC"
+                                   )))
 #Rename certain genes to their aliases
 gene_annot$Symbol_alias <- gene_annot$Symbol
 gene_annot$Symbol_alias[which(gene_annot$Symbol_alias == "FCGR1C")] <- "FCGR1CP"
@@ -2911,61 +2914,61 @@ listofvolcano <- list()
 
 i = "test1"
 for (i in colnames(cont.matrix)){
-#contrasts.fit converts the coefficients and standard errors to reflect the contrasts rather than the original design matrix, but does not compute t-statistics or p-values. 
-fit2 <- contrasts.fit(fit, contrast=cont.matrix[,i])
-
-#eBayes computes t-statistics and p-values from the coefficients and standard errors.
-fit2 <- eBayes(fit2)
-
-#topTableF ranks genes on the basis of moderated F-statistics for one or more coefficients.
-tT <- topTable(fit2, adjust="BH", sort.by="P", number=nrow(fit2))
-
-tT$legend <-  ifelse(
-  tT$adj.P.Val< 0.05 & tT$logFC > 1, "Upregulated",
-  ifelse(
-    tT$adj.P.Val < 0.05 & tT$logFC < -1, "Downregulated",
-    "Not Sig"))
-
-tT$gene <- gene_annot[match(row.names(tT), gene_annot$ID), "Symbol_alias"]
-
-selection <-which((tT$logFC>1|tT$logFC< -1)&tT$adj.P.Val<0.05)
-tT2 <- tT[selection,]
-
-listoftT[[i]] <- tT
-listoftT2[[i]] <- tT2
-
-write.csv(tT, file.path(results.dir, paste0("tT_", names(listoftT[i]), ".csv")))
-write.csv(tT2, file.path(results.dir, paste0("tT2_", names(listoftT[i]), ".csv")))
-
-
-volcano <- ggplot(tT, aes(x = logFC, y = -log10(P.Value))) +
-       geom_point(aes(color = legend)) +
-       scale_color_manual(values = c("Downregulated" = "blue", "Not Sig" = "grey", "Upregulated" = "red"))+
-       geom_hline(yintercept =-log10(max(as.data.frame(tT2[,"P.Value"]))),colour="black", linetype="dashed") +
-       geom_vline(xintercept =-1,colour="black", linetype="dashed")+
-       geom_vline(xintercept =1,colour="black", linetype="dashed")+
-       geom_text_repel(data = subset(tT2[1:20,]),
-                       aes(label= gene),
-                       size = 3, 
-                       box.padding = unit(0.35, "lines"),
-                       point.padding = unit(0.3, "lines") 
-       ) +
-       theme_bw(base_size = 12) +
-       
-       theme(legend.position = "bottom") +
-       
-       labs(title = nameconvert[which(nameconvert$name == i), "contrast"])
+  #contrasts.fit converts the coefficients and standard errors to reflect the contrasts rather than the original design matrix, but does not compute t-statistics or p-values. 
+  fit2 <- contrasts.fit(fit, contrast=cont.matrix[,i])
+  
+  #eBayes computes t-statistics and p-values from the coefficients and standard errors.
+  fit2 <- eBayes(fit2)
+  
+  #topTableF ranks genes on the basis of moderated F-statistics for one or more coefficients.
+  tT <- topTable(fit2, adjust="BH", sort.by="P", number=nrow(fit2))
+  
+  tT$legend <-  ifelse(
+    tT$adj.P.Val< 0.05 & tT$logFC > 1, "Upregulated",
+    ifelse(
+      tT$adj.P.Val < 0.05 & tT$logFC < -1, "Downregulated",
+      "Not Sig"))
+  
+  tT$gene <- gene_annot[match(row.names(tT), gene_annot$ID), "Symbol_alias"]
+  
+  selection <-which((tT$logFC>1|tT$logFC< -1)&tT$adj.P.Val<0.05)
+  tT2 <- tT[selection,]
+  
+  listoftT[[i]] <- tT
+  listoftT2[[i]] <- tT2
+  
+  write.csv(tT, file.path(results.dir, paste0("tT_", names(listoftT[i]), ".csv")))
+  write.csv(tT2, file.path(results.dir, paste0("tT2_", names(listoftT[i]), ".csv")))
+  
+  
+  volcano <- ggplot(tT, aes(x = logFC, y = -log10(P.Value))) +
+    geom_point(aes(color = legend)) +
+    scale_color_manual(values = c("Downregulated" = "blue", "Not Sig" = "grey", "Upregulated" = "red"))+
+    geom_hline(yintercept =-log10(max(as.data.frame(tT2[,"P.Value"]))),colour="black", linetype="dashed") +
+    geom_vline(xintercept =-1,colour="black", linetype="dashed")+
+    geom_vline(xintercept =1,colour="black", linetype="dashed")+
+    geom_text_repel(data = subset(tT2[1:20,]),
+                    aes(label= gene),
+                    size = 3, 
+                    box.padding = unit(0.35, "lines"),
+                    point.padding = unit(0.3, "lines") 
+    ) +
+    theme_bw(base_size = 12) +
     
-listofvolcano[[i]] <- volcano
-
-ggsave(volcano, 
-       filename = file.path(figures.dir, 
-                            paste0("volcano_",
-                                   nameconvert[which(nameconvert$name == i), "contrast"],
-                                   ".png")),
-       width = 16,
-       height = 16,
-       units = "cm")
+    theme(legend.position = "bottom") +
+    
+    labs(title = nameconvert[which(nameconvert$name == i), "contrast"])
+  
+  listofvolcano[[i]] <- volcano
+  
+  ggsave(volcano, 
+         filename = file.path(figures.dir, 
+                              paste0("volcano_",
+                                     nameconvert[which(nameconvert$name == i), "contrast"],
+                                     ".png")),
+         width = 16,
+         height = 16,
+         units = "cm")
 }
 
 
@@ -3142,6 +3145,10 @@ all(row.names(raw_clinical) == colnames(raw_counts))
 table(clinical$disease)
 table(clinical$group)
 
+clinical[which(clinical$disease == "Healthy Controls"), "disease"] <- "Healthy"
+clinical[which(clinical$disease == "MDR"), "disease"] <- "DS_TB"
+clinical[which(clinical$disease == "non MDR"), "disease"] <- "MDR_TB"
+
 clinical$group <- clinical$disease
 
 if(any(is.na(clinical$disease))){
@@ -3169,6 +3176,9 @@ all(row.names(raw_clinical) == colnames(raw_counts))
 #   theme_minimal()
 
 hist(counts_norm)
+
+GSE147690_clinical <- clinical
+GSE147690_counts_norm <- counts_norm
 
 ## 3) GSVA and boxplot to see comparisons (genesig_D_7---------------------------
 
@@ -3201,7 +3211,7 @@ boxplot_gsva <- as.data.frame(cbind(gsva = t(gsva_res),
                                     disease = clinical$disease,
                                     day = clinical$day,
                                     months = clinical$months))
-boxplot_gsva[which(boxplot_gsva$disease == "Healthy Controls"), "months"] <- 0
+boxplot_gsva[which(boxplot_gsva$disease == "Healthy"), "months"] <- 0
 
 gsva_theme <- theme(axis.title = element_text(size = 24),
                     axis.text = element_text(size = 24),
@@ -3232,9 +3242,9 @@ boxplotfinal2 <- ggplot(boxplot_gsva, aes(
   group = as.factor(disease))) +
   
   theme_bw()+
-    gsva_theme +
-    geom_point(aes(colour=disease)) +
-  geom_smooth(method = "lm", se = FALSE, aes(colour=disease))+
+  gsva_theme +
+  geom_point(aes(colour=disease)) +
+  geom_smooth(method = "loess", se = FALSE, aes(colour=disease))+
   
   # stat_pvalue_manual(stat.table.gsva,
   #                    label = "p",
@@ -3247,14 +3257,14 @@ boxplotfinal2 <- ggplot(boxplot_gsva, aes(
   #              show.legend = TRUE) +
   # 
 
-  
-  theme(axis.text.x = element_text(size = 18))+
+
+theme(axis.text.x = element_text(size = 18))+
   labs(title = paste0("Signature Analysis: ", this.accession.no),
        color = "Disease", #legend title
        caption = "Signature: IFITM1, CD274, TAP1, GBP5, GBP2, S100A8, FCGR1B") +
-  scale_color_manual(values = c("Healthy Controls" = "#7CAE00",
-                     "non MDR" = "#00BFC4",
-                     "MDR" = "#F8766D"))+
+  scale_color_manual(values = c("Healthy" = "#7CAE00",
+                                "MDR_TB" = "#00BFC4",
+                                "DS_TB" = "#F8766D"))+
   ylab (label = "Enrichment Score") +
   xlab (label = "Months of Treatment")
 
@@ -3274,10 +3284,144 @@ if(!exists(this.accession.res.dir)) dir.create(this.accession.res.dir)
 this.figure.dir <- file.path(this.accession.res.dir, "figures")
 if(!exists(this.figure.dir)) dir.create(this.figure.dir)
 
-ggsave(boxplotfinal2, filename = file.path(this.figure.dir, paste0("gsva_plot_", this.accession.no, "lm.png")), 
+ggsave(boxplotfinal2, filename = file.path(this.figure.dir, paste0("gsva_plot_", this.accession.no, ".png")), 
        width = 3600, 
        height = 3200, 
        units = "px" )
+
+
+## 4) Validation  ------------------------------------------------------
+
+# --- PAIRWISE ROC ANALYSIS --- #
+# Define all pairwise comparisons of interest
+pairwise_comparisons <- list(
+  c("Healthy", "MDR_TB"),
+  c('Healthy', "DS_TB"),
+  c('DS_TB', "MDR_TB")
+  
+)
+
+# Create a list to store AUC values and roc objects
+res_table <- data.frame()
+roc_objects <- list()
+
+# Loop through each pairwise comparison
+for (pair in pairwise_comparisons) {
+  
+  group1 <- pair[1]
+  group2 <- pair[2]
+  
+  subset_clinical <- clinical[which(clinical$months == 0| clinical$group == "Healthy"),]
+  subset_clinical[which(subset_clinical$group == "Healthy"), "months"] <- 0
+  
+  # Subset data to omly include the 2 rgroups of interest
+  subset_clinical <- subset_clinical[subset_clinical$group %in% c(group1,group2),]
+  subset_counts <- counts_norm[, row.names(subset_clinical)]
+  
+  subset_clinical$group <- factor(subset_clinical$group, levels = c(group1, group2))
+  
+  # GSVA
+  gene_set_list <- list(c("IFITM1","CD274","TAP1","GBP5","GBP2","S100A8","FCGR1B"))
+  signature_geneid <- as.character(gene_annot[match(gene_set_list[[1]], gene_annot$GENE_SYMBOL), "REFSEQ"])
+  gene_set_list <- list(c(signature_geneid))
+  
+  gsvapar <- gsvaParam(as.matrix(subset_counts), #counts_vst$E is the same
+                       gene_set_list, 
+                       maxDiff = TRUE, 
+                       minSize = 1)
+  
+  gsva_res <- gsva(gsvapar)
+  
+  glm_data <- data.frame(Score = gsva_res[1,], Group = subset_clinical$group)
+  
+  table(glm_data$Group)
+  
+  
+  glm_data$Group <- factor(glm_data$Group, levels = c(group1, group2))
+  glm_model <- glm(Group ~ Score, data = glm_data, family = binomial) 
+  
+  test_probs <- predict(glm_model, type = "response")
+  
+  roc_obj <- roc(glm_data$Group, test_probs)
+  
+  plot(roc_obj)
+  auc(roc_obj)
+  auc_ci <- ci.auc(roc_obj)
+  
+  #  The "optimal threshold" refers to the point on the ROC curve where you achieve the best balance between sensitivity and specificity, or where the classifier is most effective at distinguishing between the positive and negative classes.
+  optimal_threshold_coords <- coords(roc_obj, "best", ret = c("threshold", "sensitivity", "specificity", best.method = "youden"))
+  
+  res_current <-cbind(
+    comparison = paste0(group1," vs ",group2),
+    samples_group1 = paste(group1, "=", sum(glm_data$Group == group1)),
+    samples_group2 = paste(group2, "=", sum(glm_data$Group == group2)),
+    auc = auc(roc_obj),
+    ci = paste0(round(as.numeric(auc_ci[1]),2), "-", round(as.numeric(auc_ci[3]),2)),
+    sensitivity = optimal_threshold_coords$sensitivity, 
+    specificity = optimal_threshold_coords$specificity
+    
+  )
+  
+  res_table <- rbind(res_table, res_current)
+  
+  roc_objects[[paste0(group1," vs ",group2)]] <- roc_obj
+  
+}
+
+saveRDS(roc_objects, file.path(this.accession.res.dir, paste0(this.accession.no, "_roc_objects.rds")))
+write.csv(res_table, file.path(this.accession.res.dir, paste0(this.accession.no,"_res_table.csv")))
+
+
+
+## 5) ROC Curves -----------------------------------------------------------
+
+# Convert ROC data to a format suitable for ggplot
+roc_data <- do.call(rbind, lapply(names(roc_objects), function(comparison) {
+  data.frame(
+    TPR = rev(roc_objects[[comparison]]$sensitivities),  # True Positive Rate
+    FPR = rev(1 - roc_objects[[comparison]]$specificities),  # False Positive Rate
+    Comparison = comparison,
+    auc = rev(roc_objects[[comparison]]$auc)
+  )
+}))
+
+
+roc_data$Comparison <- factor(roc_data$Comparison)
+
+
+roc_data$ci <- res_table[match(roc_data$Comparison, res_table$comparison), "ci"]
+
+roc_data$legend <- paste0(roc_data$Comparison,": \n AUC = ", 
+                          round(roc_data$auc, 2), " (", roc_data$ci, ")")
+
+
+
+
+# Disease ROC 
+disease_roc_data <- roc_data
+
+disease_roc <- ggplot(disease_roc_data, aes(x = FPR, y = TPR, color = legend)) +
+  geom_line(size = 1.2) +
+  theme_bw() +
+  geom_abline(slope = 1, intercept = 0, linetype = "dashed", color = "black")  +
+  guides(colour = guide_legend(nrow = 2)) +
+  theme(legend.position = "bottom",
+        legend.title = element_blank(),
+        axis.title = element_text(size = 24),
+        axis.text = element_text(size = 24),
+        legend.text = element_text(size = 16),
+        title = element_text(size = 20)) +
+  labs(
+    title = "ROC - TB vs Healthy at T0",
+    x = "FPR (1 - Specificity)",
+    y = "TPR (Sensitivity)",
+    color = "Comparison",
+    caption = "Signature: IFITM1, CD274, TAP1, GBP5, GBP2, S100A8, FCGR1B") 
+
+ggsave(disease_roc, filename = file.path(this.figure.dir, "disease_roc.png"), 
+       width = 3200, 
+       height = 3500, 
+       units = "px")
 
 
 
@@ -3430,6 +3574,9 @@ all(row.names(raw_clinical) == colnames(raw_counts))
 table(clinical$disease)
 table(clinical$group)
 
+clinical[which(clinical$disease == "MDR"), "disease"] <- "DS_TB"
+clinical[which(clinical$disease == "Non MDR"), "disease"] <- "MDR_TB"
+
 clinical$group <- clinical$disease
 
 if(any(is.na(clinical$disease))){
@@ -3540,7 +3687,7 @@ theme(axis.text.x = element_text(size = 18))+
   ylab (label = "Enrichment Score") +
   xlab (label = "Months of Treatment")
 
- 
+
 
 
 this.accession.res.dir <- file.path(output.dir, this.accession.no)
@@ -3556,6 +3703,637 @@ ggsave(boxplotfinal2, filename = file.path(this.figure.dir, paste0("gsva_plot_",
 
 
 
+
+## 4) Validation  ------------------------------------------------------
+
+# --- PAIRWISE ROC ANALYSIS --- #
+# Define all pairwise comparisons of interest
+pairwise_comparisons <- list(
+  c('MDR_TB', "DS_TB")
+)
+
+# Create a list to store AUC values and roc objects
+res_table <- data.frame()
+roc_objects <- list()
+
+# Loop through each pairwise comparison
+for (pair in pairwise_comparisons) {
+  
+  group1 <- pair[1]
+  group2 <- pair[2]
+  
+  subset_clinical <- clinical[which(clinical$months == 0),]
+  
+  # Subset data to omly include the 2 rgroups of interest
+  subset_clinical <- subset_clinical[subset_clinical$group %in% c(group1,group2),]
+  subset_counts <- counts_norm[, row.names(subset_clinical)]
+  
+  subset_clinical$group <- factor(subset_clinical$group, levels = c(group1, group2))
+  
+  # GSVA
+  gene_set_list <- list(c("IFITM1","CD274","TAP1","GBP5","GBP2","S100A8","FCGR1B"))
+  signature_geneid <- as.character(gene_annot[match(gene_set_list[[1]], gene_annot$GENE_SYMBOL), "REFSEQ"])
+  gene_set_list <- list(c(signature_geneid))
+  
+  gsvapar <- gsvaParam(as.matrix(subset_counts), #counts_vst$E is the same
+                       gene_set_list, 
+                       maxDiff = TRUE, 
+                       minSize = 1)
+  
+  gsva_res <- gsva(gsvapar)
+  
+  glm_data <- data.frame(Score = gsva_res[1,], Group = subset_clinical$group)
+  
+  table(glm_data$Group)
+  
+  
+  glm_data$Group <- factor(glm_data$Group, levels = c(group1, group2))
+  glm_model <- glm(Group ~ Score, data = glm_data, family = binomial) 
+  
+  test_probs <- predict(glm_model, type = "response")
+  
+  roc_obj <- roc(glm_data$Group, test_probs)
+  
+  plot(roc_obj)
+  auc(roc_obj)
+  auc_ci <- ci.auc(roc_obj)
+  
+  #  The "optimal threshold" refers to the point on the ROC curve where you achieve the best balance between sensitivity and specificity, or where the classifier is most effective at distinguishing between the positive and negative classes.
+  optimal_threshold_coords <- coords(roc_obj, "best", ret = c("threshold", "sensitivity", "specificity", best.method = "youden"))
+  
+  res_current <-cbind(
+    comparison = paste0(group1," vs ",group2),
+    samples_group1 = paste(group1, "=", sum(glm_data$Group == group1)),
+    samples_group2 = paste(group2, "=", sum(glm_data$Group == group2)),
+    auc = auc(roc_obj),
+    ci = paste0(round(as.numeric(auc_ci[1]),2), "-", round(as.numeric(auc_ci[3]),2)),
+    sensitivity = optimal_threshold_coords$sensitivity, 
+    specificity = optimal_threshold_coords$specificity
+    
+  )
+  
+  res_table <- rbind(res_table, res_current)
+  
+  roc_objects[[paste0(group1," vs ",group2)]] <- roc_obj
+  
+}
+
+saveRDS(roc_objects, file.path(this.accession.res.dir, paste0(this.accession.no, "_roc_objects.rds")))
+write.csv(res_table, file.path(this.accession.res.dir, paste0(this.accession.no,"_res_table.csv")))
+
+
+
+## 5) ROC Curves -----------------------------------------------------------
+
+# Convert ROC data to a format suitable for ggplot
+roc_data <- do.call(rbind, lapply(names(roc_objects), function(comparison) {
+  data.frame(
+    TPR = rev(roc_objects[[comparison]]$sensitivities),  # True Positive Rate
+    FPR = rev(1 - roc_objects[[comparison]]$specificities),  # False Positive Rate
+    Comparison = comparison,
+    auc = rev(roc_objects[[comparison]]$auc)
+  )
+}))
+
+
+roc_data$Comparison <- factor(roc_data$Comparison)
+
+
+roc_data$ci <- res_table[match(roc_data$Comparison, res_table$comparison), "ci"]
+
+roc_data$legend <- paste0(roc_data$Comparison,": \n AUC = ", 
+                          round(roc_data$auc, 2), " (", roc_data$ci, ")")
+
+
+
+
+# Disease ROC 
+disease_roc_data <- roc_data
+
+disease_roc <- ggplot(disease_roc_data, aes(x = FPR, y = TPR, color = legend)) +
+  geom_line(size = 1.2) +
+  theme_bw() +
+  geom_abline(slope = 1, intercept = 0, linetype = "dashed", color = "black")  +
+  guides(colour = guide_legend(nrow = 2)) +
+  theme(legend.position = "bottom",
+        legend.title = element_blank(),
+        axis.title = element_text(size = 24),
+        axis.text = element_text(size = 24),
+        legend.text = element_text(size = 16),
+        title = element_text(size = 20)) +
+  labs(
+    title = "ROC - MDR_TB vs DS_MDR at T0",
+    x = "FPR (1 - Specificity)",
+    y = "TPR (Sensitivity)",
+    color = "Comparison",
+    caption = "Signature: IFITM1, CD274, TAP1, GBP5, GBP2, S100A8, FCGR1B") 
+
+ggsave(disease_roc, filename = file.path(this.figure.dir, "disease_roc.png"), 
+       width = 3200, 
+       height = 3500, 
+       units = "px")
+
+
+
+
+
+
+
+
+
+
+
+# COMBINE GERMAN IDENTIFICATION + VALIDATIONS COHORTS) ----------------------------------------------------------------------------------------------------------------------------------------
+this.accession.no <- "GSE147690_GSE147689"
+setwd(file.path(my_directory,"TB", "data", "public", this.accession.no))
+
+
+# GSE147690_clinical <- clinical
+# GSE147690_counts_norm <- counts_norm
+
+# GSE147689_clinical <- clinical
+# GSE147689_counts_norm <- counts_norm
+
+german_clinical <-rbind(GSE147689_clinical, GSE147690_clinical[,-5])
+german_counts <- cbind(GSE147689_counts_norm, GSE147690_counts_norm)
+
+colnames(german_counts) == row.names(german_clinical)
+
+table(german_clinical$group)
+table(german_clinical$months)
+
+german_clinical[which(german_clinical$disease == "Healthy"), "months"] <- 0
+
+
+
+
+
+## 3) GSVA and boxplot to see comparisons (genesig_D_7---------------------------
+
+gene_set_list <- list(c("IFITM1","CD274","TAP1","GBP5","GBP2","S100A8","FCGR1B")) #NR_027484 is FCGR1C on GPL13497, but has main name FCGR1B
+signature_geneid <- as.character(gene_annot[match(gene_set_list[[1]], gene_annot$GENE_SYMBOL), "REFSEQ"])
+signature_geneid %in% row.names(german_counts)
+#CANNOT FIND FCGR1C OR ITS ALIASES
+
+
+
+if(length(signature_geneid) < 6){ 
+  print("Missing gene in signature after genone_annot conversion")
+  stop() }
+
+gene_set_list <- list(c(signature_geneid))
+
+gsvapar <- gsvaParam(as.matrix(german_counts),
+                     gene_set_list,
+                     maxDiff = TRUE,
+                     minSize = 1)
+
+gsva_res <- gsva(gsvapar) #dont need to transpose because next line takes row 1 anyway
+
+# gsva_res_normdata <- gsva_res
+
+
+all(row.names(gsva_res) == row.names(german_clinical))
+
+
+boxplot_gsva <- as.data.frame(cbind(gsva = t(gsva_res),
+                                    day = german_clinical$day,
+                                    months = german_clinical$months,
+                                    group = german_clinical$group))
+
+gsva_theme <- theme(axis.title = element_text(size = 24),
+                    axis.text = element_text(size = 24),
+                    title = element_text(size = 20),
+                    legend.text = element_text(size = 18)) 
+
+my_comparisons <- combn(unique(german_clinical$group), 2, simplify = FALSE)
+
+x_order <- c("Healthy", "DS_TB", "MDR_TB")
+
+boxplot_gsva$group <- factor(boxplot_gsva$group, levels = x_order)
+boxplot_gsva$V1 <- as.numeric(boxplot_gsva$V1)
+
+# stat.table.gsva <- boxplot_gsva  %>%
+#   wilcox_test(V1 ~ group,
+#               paired = FALSE) %>%
+#   add_xy_position(x = "group")
+# 
+# stat.table.gsva <- stat.table.gsva[which(stat.table.gsva$p < 0.05),]
+# lowest_bracket <- max(boxplot_gsva$V1) + 0.05*(max(boxplot_gsva$V1))
+# stat.table.gsva$y.position <- seq(lowest_bracket, by= 0.1, length.out = nrow(stat.table.gsva))
+
+
+#geom_point, split by disease
+boxplotfinal2 <- ggplot(boxplot_gsva, aes(
+  x = as.numeric(months),
+  y = as.numeric(boxplot_gsva[,1]),
+  group = as.factor(group))) +
+  
+  theme_bw()+
+  gsva_theme +
+  geom_point(aes(colour=group)) +
+  geom_smooth(method = "loess", se = FALSE, aes(colour=group))+
+  scale_color_manual(values = c("Healthy" = "#7CAE00",
+                                "MDR_TB" = "#00BFC4",
+                                "DS_TB" = "#F8766D"))+
+  # stat_pvalue_manual(stat.table.gsva,
+  #                    label = "p",
+  #                    tip.length = 0.01,
+  #                    size = 7)+
+  # 
+  # # scale_y_continuous(expand = c(0.07, 0, 0.07, 0)) +
+  # stat_summary(fun.y = mean, fill = "red",
+  #              geom = "point", shape = 21, size =4,
+  #              show.legend = TRUE) +
+  # 
+
+
+theme(axis.text.x = element_text(size = 18))+
+  labs(title = "Signature Analysis: GSE147689 & GSE147690",
+       color = "Disease", #legend title
+       caption = "Signature: IFITM1, CD274, TAP1, GBP5, GBP2, S100A8, FCGR1B") +
+  ylab (label = "Enrichment Score") +
+  xlab (label = "Months of Treatment")
+
+
+
+
+this.accession.res.dir <- file.path(output.dir, this.accession.no)
+if(!exists(this.accession.res.dir)) dir.create(this.accession.res.dir)
+
+this.figure.dir <- file.path(this.accession.res.dir, "figures")
+if(!exists(this.figure.dir)) dir.create(this.figure.dir)
+
+ggsave(boxplotfinal2, filename = file.path(this.figure.dir, paste0("gsva_plot_", this.accession.no, ".png")), 
+       width = 3600, 
+       height = 3200, 
+       units = "px" )
+
+
+
+
+## 4) Validation  ------------------------------------------------------
+
+# --- PAIRWISE ROC ANALYSIS --- #
+# Define all pairwise comparisons of interest
+pairwise_comparisons <- list(
+  c("Healthy", "MDR_TB"),
+  c('Healthy', "DS_TB"),
+  c('DS_TB', "MDR_TB")
+  
+)
+
+# Create a list to store AUC values and roc objects
+res_table <- data.frame()
+roc_objects <- list()
+
+# Loop through each pairwise comparison
+for (pair in pairwise_comparisons) {
+  
+  group1 <- pair[1]
+  group2 <- pair[2]
+  
+  subset_clinical <- german_clinical[which(german_clinical$months == 0),]
+  
+  # Subset data to omly include the 2 rgroups of interest
+  subset_clinical <- subset_clinical[subset_clinical$group %in% c(group1,group2),]
+  subset_counts <- german_counts[, row.names(subset_clinical)]
+  
+  subset_clinical$group <- factor(subset_clinical$group, levels = c(group1, group2))
+  
+  # GSVA
+  gene_set_list <- list(c("IFITM1","CD274","TAP1","GBP5","GBP2","S100A8","FCGR1B"))
+  signature_geneid <- as.character(gene_annot[match(gene_set_list[[1]], gene_annot$GENE_SYMBOL), "REFSEQ"])
+  gene_set_list <- list(c(signature_geneid))
+  
+  gsvapar <- gsvaParam(as.matrix(subset_counts), #counts_vst$E is the same
+                       gene_set_list, 
+                       maxDiff = TRUE, 
+                       minSize = 1)
+  
+  gsva_res <- gsva(gsvapar)
+  
+  glm_data <- data.frame(Score = gsva_res[1,], Group = subset_clinical$group)
+  
+  table(glm_data$Group)
+  
+  
+  glm_data$Group <- factor(glm_data$Group, levels = c(group1, group2))
+  glm_model <- glm(Group ~ Score, data = glm_data, family = binomial) 
+  
+  test_probs <- predict(glm_model, type = "response")
+  
+  roc_obj <- roc(glm_data$Group, test_probs)
+  
+  plot(roc_obj)
+  auc(roc_obj)
+  auc_ci <- ci.auc(roc_obj)
+  
+  #  The "optimal threshold" refers to the point on the ROC curve where you achieve the best balance between sensitivity and specificity, or where the classifier is most effective at distinguishing between the positive and negative classes.
+  optimal_threshold_coords <- coords(roc_obj, "best", ret = c("threshold", "sensitivity", "specificity", best.method = "youden"))
+  
+  res_current <-cbind(
+    comparison = paste0(group1," vs ",group2),
+    samples_group1 = paste(group1, "=", sum(glm_data$Group == group1)),
+    samples_group2 = paste(group2, "=", sum(glm_data$Group == group2)),
+    auc = auc(roc_obj),
+    ci = paste0(round(as.numeric(auc_ci[1]),2), "-", round(as.numeric(auc_ci[3]),2)),
+    sensitivity = optimal_threshold_coords$sensitivity, 
+    specificity = optimal_threshold_coords$specificity
+    
+  )
+  
+  res_table <- rbind(res_table, res_current)
+  
+  roc_objects[[paste0(group1," vs ",group2)]] <- roc_obj
+  
+}
+
+saveRDS(roc_objects, file.path(this.accession.res.dir, paste0(this.accession.no, "_roc_objects.rds")))
+write.csv(res_table, file.path(this.accession.res.dir, paste0(this.accession.no,"_res_table.csv")))
+
+
+
+## 5) ROC Curves -----------------------------------------------------------
+
+# Convert ROC data to a format suitable for ggplot
+roc_data <- do.call(rbind, lapply(names(roc_objects), function(comparison) {
+  data.frame(
+    TPR = rev(roc_objects[[comparison]]$sensitivities),  # True Positive Rate
+    FPR = rev(1 - roc_objects[[comparison]]$specificities),  # False Positive Rate
+    Comparison = comparison,
+    auc = rev(roc_objects[[comparison]]$auc)
+  )
+}))
+
+
+roc_data$Comparison <- factor(roc_data$Comparison)
+
+
+roc_data$ci <- res_table[match(roc_data$Comparison, res_table$comparison), "ci"]
+
+roc_data$legend <- paste0(roc_data$Comparison,": \n AUC = ", 
+                          round(roc_data$auc, 2), " (", roc_data$ci, ")")
+
+
+
+
+# Disease ROC 
+disease_roc_data <- roc_data
+
+disease_roc <- ggplot(disease_roc_data, aes(x = FPR, y = TPR, color = legend)) +
+  geom_line(size = 1.2) +
+  theme_bw() +
+  geom_abline(slope = 1, intercept = 0, linetype = "dashed", color = "black")  +
+  guides(colour = guide_legend(nrow = 2)) +
+  theme(legend.position = "bottom",
+        legend.title = element_blank(),
+        axis.title = element_text(size = 24),
+        axis.text = element_text(size = 24),
+        legend.text = element_text(size = 16),
+        title = element_text(size = 20)) +
+  labs(
+    title = "ROC - Healthy vs TB at T0",
+    x = "FPR (1 - Specificity)",
+    y = "TPR (Sensitivity)",
+    color = "Comparison",
+    caption = "Signature: IFITM1, CD274, TAP1, GBP5, GBP2, S100A8, FCGR1B") 
+
+ggsave(disease_roc, filename = file.path(this.figure.dir, "disease_roc.png"), 
+       width = 3200, 
+       height = 3500, 
+       units = "px")
+
+
+
+
+
+
+
+## 4) ROUNDED Validation  ------------------------------------------------------
+# CREATE TIMEPOINTS
+
+round_half <- function(x) {
+  round(x * 2) / 2
+}
+table(round_half(german_clinical$months))
+
+table(round(german_clinical$months))
+# Can see from this that there are the below no. of samples available
+# T0: 105
+# 14 days: 113
+# ~ 6 months: 5 months (15), 6 months(64), 7 months(24)
+# ~ 10 months: 9 motnhs(9), 10 months (28), 11 months (16)
+# ~ 15 months: 14 months (2), 15 months (22), 16 months (14)
+# ~ 20 months: 19 months (3), 20 months(17), 21 months (15)
+
+german_clinical$months_round <- round(german_clinical$months)
+german_clinical$months_round_half <- round_half(german_clinical$months)
+
+german_clinical[which(german_clinical$months == 0), "group_round"] <- "0_Days"
+
+german_clinical[which(german_clinical$months_round_half == 0.5), "group_round"] <- "14_Days"
+
+german_clinical[which(german_clinical$months_round_half == 5.5|
+                        german_clinical$months_round_half == 6|
+                        german_clinical$months_round_half == 6.5), "group_round"] <- "6_Mths"
+
+german_clinical[which(german_clinical$months_round_half == 9.5|
+                        german_clinical$months_round_half == 10|
+                        german_clinical$months_round_half == 10.5), "group_round"] <- "10_Mths"
+
+
+german_clinical[which(german_clinical$months_round_half == 14.5|
+                        german_clinical$months_round_half == 15|
+                        german_clinical$months_round_half == 15.5), "group_round"] <- "15_Mths"
+
+
+german_clinical[which(german_clinical$months_round_half == 19.5|
+                        german_clinical$months_round_half == 20|
+                        german_clinical$months_round_half == 20.5), "group_round"] <- "20_Mths"
+
+german_clinical2 <- german_clinical[!is.na(german_clinical$group_round),]
+german_clinical2$group_new <- paste0(german_clinical2$disease,"_", german_clinical2$group_round)
+
+german_counts2 <- german_counts[,row.names(german_clinical2)]
+
+# --- PAIRWISE ROC ANALYSIS --- #
+# Define all pairwise comparisons of interest
+
+table(german_clinical2$group_new)  #10 and 15 months dont have enough samples
+pairwise_comparisons <- list(
+  c("Healthy_0_Days", "MDR_TB_0_Days"),
+  c('Healthy_0_Days', "DS_TB_0_Days"),
+  c('DS_TB_0_Days', "MDR_TB_0_Days"),
+  
+  c('MDR_TB_0_Days', "MDR_TB_14_Days"),
+  c('MDR_TB_0_Days', "MDR_TB_6_Mths"), 
+
+  c('DS_TB_0_Days', "DS_TB_14_Days"),
+  c('DS_TB_0_Days', "DS_TB_6_Mths"),
+  c('DS_TB_0_Days', "DS_TB_10_Mths"),
+  c('DS_TB_0_Days', "DS_TB_20_Mths")
+)
+
+
+# Create a list to store AUC values and roc objects
+res_table <- data.frame()
+roc_objects <- list()
+
+# Loop through each pairwise comparison
+for (pair in pairwise_comparisons) {
+  
+  group1 <- pair[1]
+  group2 <- pair[2]
+  
+  
+  # Subset data to omly include the 2 rgroups of interest
+  subset_clinical <- german_clinical2[german_clinical2$group_new %in% c(group1,group2),]
+  subset_counts <- german_counts2[, row.names(subset_clinical)]
+  
+  subset_clinical$group_new <- factor(subset_clinical$group_new, levels = c(group1, group2))
+  
+  # GSVA
+  gene_set_list <- list(c("IFITM1","CD274","TAP1","GBP5","GBP2","S100A8","FCGR1B"))
+  signature_geneid <- as.character(gene_annot[match(gene_set_list[[1]], gene_annot$GENE_SYMBOL), "REFSEQ"])
+  gene_set_list <- list(c(signature_geneid))
+  
+  gsvapar <- gsvaParam(as.matrix(subset_counts), #counts_vst$E is the same
+                       gene_set_list, 
+                       maxDiff = TRUE, 
+                       minSize = 1)
+  
+  gsva_res <- gsva(gsvapar)
+  
+  glm_data <- data.frame(Score = gsva_res[1,], group_new = subset_clinical$group_new)
+  
+  table(glm_data$group_new)
+  
+  
+  glm_data$group_new <- factor(glm_data$group_new, levels = c(group1, group2))
+  glm_model <- glm(group_new ~ Score, data = glm_data, family = binomial) 
+  
+  test_probs <- predict(glm_model, type = "response")
+  
+  roc_obj <- roc(glm_data$group_new, test_probs)
+  
+  plot(roc_obj)
+  auc(roc_obj)
+  auc_ci <- ci.auc(roc_obj)
+  
+  #  The "optimal threshold" refers to the point on the ROC curve where you achieve the best balance between sensitivity and specificity, or where the classifier is most effective at distinguishing between the positive and negative classes.
+  optimal_threshold_coords <- coords(roc_obj, "best", ret = c("threshold", "sensitivity", "specificity", best.method = "youden"))
+  
+  res_current <-cbind(
+    comparison = paste0(group1," vs ",group2),
+    samples_group1 = paste(group1, "=", sum(glm_data$group_new == group1)),
+    samples_group2 = paste(group2, "=", sum(glm_data$group_new == group2)),
+    auc = auc(roc_obj),
+    ci = paste0(round(as.numeric(auc_ci[1]),2), "-", round(as.numeric(auc_ci[3]),2)),
+    sensitivity = optimal_threshold_coords$sensitivity, 
+    specificity = optimal_threshold_coords$specificity
+    
+  )
+  
+  res_table <- rbind(res_table, res_current)
+  
+  roc_objects[[paste0(group1," vs ",group2)]] <- roc_obj
+  
+}
+
+saveRDS(roc_objects, file.path(this.accession.res.dir, paste0(this.accession.no, "_roc_objects.rds")))
+write.csv(res_table, file.path(this.accession.res.dir, paste0(this.accession.no,"_res_table.csv")))
+
+
+
+
+## 5) ROUNDED ROC Curves -----------------------------------------------------------
+
+# Convert ROC data to a format suitable for ggplot
+roc_data <- do.call(rbind, lapply(names(roc_objects), function(comparison) {
+  data.frame(
+    TPR = rev(roc_objects[[comparison]]$sensitivities),  # True Positive Rate
+    FPR = rev(1 - roc_objects[[comparison]]$specificities),  # False Positive Rate
+    Comparison = comparison,
+    auc = rev(roc_objects[[comparison]]$auc)
+  )
+}))
+
+
+roc_data$Comparison <- factor(roc_data$Comparison)
+
+
+roc_data$ci <- res_table[match(roc_data$Comparison, res_table$comparison), "ci"]
+
+roc_data$legend <- paste0(roc_data$Comparison,": \n AUC = ", 
+                          round(roc_data$auc, 2), " (", roc_data$ci, ")")
+
+
+
+
+# Disease ROC 
+disease_roc_data <- roc_data[which(roc_data$Comparison == "DS_TB_0_Days vs MDR_TB_0_Days" | 
+                                     roc_data$Comparison == "Healthy_0_Days vs DS_TB_0_Days" |
+                                     roc_data$Comparison == "Healthy_0_Days vs MDR_TB_0_Days" ), ]
+
+disease_roc <- ggplot(disease_roc_data, aes(x = FPR, y = TPR, color = legend)) +
+  geom_line(size = 1.2) +
+  theme_bw() +
+  geom_abline(slope = 1, intercept = 0, linetype = "dashed", color = "black")  +
+  guides(colour = guide_legend(nrow = 2)) +
+  theme(legend.position = "bottom",
+        legend.title = element_blank(),
+        axis.title = element_text(size = 24),
+        axis.text = element_text(size = 24),
+        legend.text = element_text(size = 16),
+        title = element_text(size = 20)) +
+  labs(
+    title = "ROC - TB vs Healthy at T0",
+    x = "FPR (1 - Specificity)",
+    y = "TPR (Sensitivity)",
+    color = "Comparison",
+    caption = "Signature: IFITM1, CD274, TAP1, GBP5, GBP2, S100A8, FCGR1B") 
+
+ggsave(disease_roc, filename = file.path(this.figure.dir, "disease_roc.png"), 
+       width = 3200, 
+       height = 3500, 
+       units = "px")
+
+
+
+
+levels(roc_data$Comparison)
+# Timepoint ROC
+timepoint_roc_data <- roc_data[which(roc_data$Comparison == "MDR_TB_0_Days vs MDR_TB_14_Days" | 
+                                       roc_data$Comparison == "MDR_TB_0_Days vs MDR_TB_6_Mths" |
+                                       
+                                       roc_data$Comparison == "DS_TB_0_Days vs DS_TB_14_Days" |
+                                       roc_data$Comparison == "DS_TB_0_Days vs DS_TB_6_Mths" |
+                                       roc_data$Comparison == "DS_TB_0_Days vs DS_TB_10_Mths" |
+                                       roc_data$Comparison == "DS_TB_0_Days vs DS_TB_20_Mths"), ]
+
+timepoint_roc <- ggplot(timepoint_roc_data, aes(x = FPR, y = TPR, color = legend)) +
+  geom_line(size = 1.2) +
+  theme_bw() +
+  geom_abline(slope = 1, intercept = 0, linetype = "dashed", color = "black")  +
+  guides(colour = guide_legend(nrow = 3)) +
+  theme(legend.position = "bottom",
+        axis.title = element_text(size = 24),
+        axis.text = element_text(size = 24),
+        legend.text = element_text(size = 16),
+        title = element_text(size = 20)) +
+  labs(
+    title = "ROC - TB treatment timepoints",
+    x = "FPR (1 - Specificity)",
+    y = "TPR(Sensitivity)",
+    color = "Comparison",
+    caption = "Signature: IFITM1, CD274, TAP1, GBP5, GBP2, S100A8, FCGR1CP")
+
+
+ggsave(timepoint_roc, filename = file.path(this.figure.dir, "timepoint_roc.png"), 
+       width = 3400, 
+       height = 3200, 
+       units = "px")
 
 
 
@@ -3970,3 +4748,233 @@ ggsave(timepoint_roc, filename = file.path(this.figure.dir, "timepoint_roc.png")
        width = 3200, 
        height = 3500, 
        units = "px")
+
+
+
+
+# ================================================================================== #
+## HEATMAP ON OWN DATA  =====================================================
+# ================================================================================== #
+#X axis: Samples
+#Y-axis: genes
+#data: expression
+
+clinical <- read.csv("C:/Users/165861_admin/OneDrive - UTS/Documents/RBMB/TB/data/processed/post-QC/clinical.csv", row.names = 1, check.names = FALSE)
+expression <- read.csv("C:/Users/165861_admin/OneDrive - UTS/Documents/RBMB/TB/data/processed/post-QC/expression.csv", row.names = 1, check.names = FALSE)
+tT_contrast1 <- read.csv("C:/Users/165861_admin/OneDrive - UTS/Documents/RBMB/TB/output/results/tT/contrast1.csv", row.names = 1, check.names = FALSE)
+top_features_16 <- read.csv("C:/Users/165861_admin/OneDrive - UTS/Documents/RBMB/TB/output/results/signature/training/Importance/train_16/top_features_16.csv", row.names = 1, check.names = FALSE)
+top_features_16 <- top_features_16$x
+# genesig_D_7 <- top_features_16[1:7]
+
+
+gene_order <- c(top_features_16, setdiff(row.names(expression), top_features_16))
+heatmapsamples <- clinical$PAXGENE[which(clinical$condition == "TB_T0" | clinical$condition == "HC_T0")]
+# heatmapsamples <- clinical$PAXGENE[which(clinical$Disease == "TB")]
+
+
+# tT <- listofresults[[x]]
+# selection <-which((tT$logFC>1|tT$logFC< -1)& tT$BHAdjPValue<0.05)
+# 
+# tT2=tT[selection,]
+
+clinical_heatmap <- clinical[as.character(heatmapsamples),]
+expression_heatmap <- expression[,as.character(heatmapsamples)]
+
+clinical_heatmap_ordered <- clinical_heatmap[order(clinical_heatmap$Disease),]
+
+# clinical_heatmap_ordered <- clinical_heatmap_ordered[-which(is.na(clinical_heatmap_ordered$sex)),]
+
+
+#reorder expression columns/samples to be the same as clinical_ordered
+heatmapdata <- as.matrix(expression_heatmap[,row.names(clinical_heatmap_ordered)])
+heatmapdata <- heatmapdata[-which(row.names(heatmapdata) == "B2M" | row.names(heatmapdata) == "GAPDH"),]
+# heatmapdata <-rbind(heatmapdata,condition = clinical_heatmap_ordered$condition)
+
+sample_annot <- data.frame(Sample = clinical_heatmap_ordered$PAXGENE, condition = clinical_heatmap_ordered$condition)
+sample_annot$Sample <- as.character(sample_annot$Sample)
+
+library(ggtext)
+p <- as.data.frame(heatmapdata) %>% 
+  rownames_to_column("Gene") %>% 
+  pivot_longer(cols = -Gene, names_to = "Sample", values_to = "expression")
+
+p <- left_join(p, sample_annot, by = "Sample") 
+
+p <- p %>%  mutate(expression_z = scale(expression)) 
+p <- mutate(p, Gene_label = ifelse(p$Gene %in% top_features_16[1:7],
+                                   paste0("**", p$Gene, "**"),  # Bolded label
+                                   p$Gene))
+
+
+p$Gene_label <- factor(p$Gene, levels = rev(gene_order))
+for (i in top_features_16[1:7]){
+  
+  levels(p$Gene_label)[levels(p$Gene_label) == i] <-  paste0("**", i, "**")
+  
+}
+
+
+
+
+heatmapplot <- ggplot(p, aes(x=Sample, y=Gene_label, fill=expression_z))+
+  geom_tile(colour="white", linewidth=0.1)+
+  theme(axis.text.x = element_blank(),
+        axis.title = element_text(size = 14),
+        axis.ticks.x = element_blank(),
+        strip.text = element_text(size = 14),
+        axis.text.y = element_markdown(size = 10),
+        legend.title = element_text(size = 14),
+        plot.title = element_text(size = 14),
+        plot.caption = element_text(size = 14))+
+  guides(fill=guide_legend(title="Scaled Expression"))+
+  facet_grid(. ~ condition, scales = "free_x", space = "free_x")+
+  scale_fill_gradient2(
+    low = "blue",       # low values
+    mid = "white",     # middle (usually 0 for z-score)
+    high = "red",     # high values
+    midpoint = 0
+  ) +
+  labs(title = "Gene expression at T0",
+       caption = "Scaled VST normalised counts")
+
+print(heatmapplot)
+
+this.figure.dir <- "C:/Users/165861_admin/OneDrive - UTS/Documents/RBMB/TB/output/figures/heatmap"
+
+ggsave(heatmapplot, filename = file.path(this.figure.dir, "heatmap_T0.png"), 
+       width = 3200, 
+       height = 2800, 
+       units = "px")
+
+# ================================================================================== #
+## HEATMAP ON VALIDATION DATA  =====================================================
+# ================================================================================== #
+
+#GSE89403
+
+clinical <- read.csv("C:/Users/165861_admin/OneDrive - UTS/Documents/RBMB/TB/data/processed/post-QC/clinical.csv", row.names = 1, check.names = FALSE)
+expression <- read.csv("C:/Users/165861_admin/OneDrive - UTS/Documents/RBMB/TB/data/processed/post-QC/expression.csv", row.names = 1, check.names = FALSE)
+
+expression_GSE89403 <- read.table("C:/Users/165861_admin/OneDrive - UTS/Documents/RBMB/TB/data/public/GSE89403/counts_vst.txt")
+clinical_GSE89403 <- read.table("C:/Users/165861_admin/OneDrive - UTS/Documents/RBMB/TB/data/public/GSE89403/clinical.txt")
+gene_annot <- read.table("C:/Users/165861_admin/OneDrive - UTS/Documents/RBMB/TB/data/public/GSE89403/gene_annot.txt")
+top_features_16 <- read.csv("C:/Users/165861_admin/OneDrive - UTS/Documents/RBMB/TB/output/results/signature/training/Importance/train_16/top_features_16.csv", row.names = 1, check.names = FALSE)
+top_features_16 <- top_features_16$x
+
+#The 46 genes in our data
+our_genes <- row.names(expression)
+our_genes[which(our_genes == "FCGR1B")] <- "FCGR1BP"
+our_genes[which(our_genes == "TRAMT2A")] <- "TRMT2A"
+
+signature_geneid <- as.character(gene_annot[match(our_genes, gene_annot$Symbol), "GeneID"])
+
+#only include the same 46 genes
+heatmap_counts <- expression_GSE89403[signature_geneid,]
+row.names(heatmap_counts) <- our_genes
+
+#Our gene panel
+gene_order <- c(top_features_16, setdiff(row.names(heatmap_counts), top_features_16))
+
+#only genesig_D-7
+gene_order <- c(top_features_16[1:7])
+
+#Subset for T0
+# heatmapsamples <- row.names(clinical_GSE89403)[which(clinical_GSE89403$group == "TB_DX" |
+#                                                        clinical_GSE89403$group == "MTP_ctrl" |
+#                                                        clinical_GSE89403$group == "Healthy" |
+#                                                        clinical_GSE89403$group == "Lungdx_ctrl")]
+
+heatmapsamples <- row.names(clinical_GSE89403)
+
+
+# tT <- listofresults[[x]]
+# selection <-which((tT$logFC>1|tT$logFC< -1)& tT$BHAdjPValue<0.05)
+# 
+# tT2=tT[selection,]
+
+#filter for only T0 and healthy
+clinical_heatmap <- clinical_GSE89403[as.character(heatmapsamples),]
+expression_heatmap <- heatmap_counts[,as.character(heatmapsamples)]
+
+clinical_heatmap_ordered <- clinical_GSE89403[c(
+  which(clinical_GSE89403$group == "Healthy"),
+  which(clinical_GSE89403$group == "Lungdx_ctrl"),
+  which(clinical_GSE89403$group == "MTP_ctrl"),
+  which(clinical_GSE89403$group == "TB_DX"),
+  which(clinical_GSE89403$group == "TB_day_7"),
+  which(clinical_GSE89403$group == "TB_week_4"),
+  which(clinical_GSE89403$group == "TB_week_24")),
+]
+
+clinical_heatmap_ordered <- clinical_heatmap[order(clinical_heatmap$disease,clinical_heatmap$time),]
+
+
+#reorder expression columns/samples to be the same as clinical_ordered
+heatmapdata <- as.matrix(expression_heatmap[,row.names(clinical_heatmap_ordered)])
+heatmapdata <- heatmapdata[-which(row.names(heatmapdata) == "B2M" | row.names(heatmapdata) == "GAPDH"),]
+# heatmapdata <-rbind(heatmapdata,condition = clinical_heatmap_ordered$condition)
+
+sample_annot <- data.frame(Sample = row.names(clinical_heatmap_ordered), condition = clinical_heatmap_ordered$group)
+
+p <- as.data.frame(heatmapdata) %>% 
+  rownames_to_column("Gene") %>% 
+  pivot_longer(cols = -Gene, names_to = "Sample", values_to = "expression")
+
+p <- left_join(p, sample_annot, by = "Sample") 
+
+p <- p %>%  
+  #scale gene expression data
+  mutate(expression_z = scale(expression)) 
+  #bold the first 7 genes
+
+p$condition <- factor(p$condition, levels = c("Healthy", "Lungdx_ctrl", "MTP_ctrl","TB_DX","TB_day_7", "TB_week_4","TB_week_24"))
+p$Gene_label <- factor(p$Gene, levels = rev(gene_order))
+for (i in top_features_16[1:7]){
+  
+  levels(p$Gene_label)[levels(p$Gene_label) == i] <-  paste0("**", i, "**")
+  
+}
+
+p <- p %>% mutate(condition = recode(condition,
+                          "Lungdx_ctrl" = "Lung\n Dz\n ctrl",
+                          "MTP_ctrl" = "MTP\n ctrl",
+                          "TB_day_7" = "TB_Day7",
+                          "TB_week_4" = "TB_Wk4",
+                          "TB_week_24" = "TB_Wk24",
+                          ))
+
+p <- p[!is.na(p$Gene_label),]
+library(ggtext)
+heatmapplot <- ggplot(p, aes(x=Sample, y=Gene_label, fill=expression_z))+
+  geom_tile(colour="white", linewidth=0.1)+
+  theme(axis.text.x = element_blank(),
+        axis.title = element_text(size = 16),
+        axis.ticks.x = element_blank(),
+        strip.text = element_text(size = 16),
+        axis.text.y = element_markdown(size = 12),
+        legend.title = element_text(size = 16),
+        legend.text = element_text(size = 12),
+        plot.title = element_text(size = 16),
+        plot.caption = element_text(size = 16))+
+  guides(fill=guide_legend(title="Scaled Expression"))+
+  facet_grid(. ~ condition, scales = "free_x", space = "free_x")+
+  scale_fill_gradient2(
+    low = "blue",       # low values
+    mid = "white",     # middle (usually 0 for z-score)
+    high = "red",     # high values
+    midpoint = 0
+  ) + 
+  labs(title = "GSE89403",
+       caption = "Scaled VST normalised counts")
+
+print(heatmapplot)
+
+this.figure.dir <- "C:/Users/165861_admin/OneDrive - UTS/Documents/RBMB/TB/output/figures/heatmap"
+
+ggsave(heatmapplot, filename = file.path(this.figure.dir, "heatmap_genesigD7_GSE89403.png"), 
+       width = 5500, 
+       height = 2000, 
+       units = "px")
+  
+
+

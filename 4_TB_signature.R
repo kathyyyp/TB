@@ -2,19 +2,17 @@
 # OPTIONAL. LOAD WORKSPACES ========================================================
 # ================================================================================== #
 
-load("workspaces/07_04_2025_DEresults.RData")
-
 
 # ================================================================================== #
 # A. SCRIPT SET UP =================================================================
 # ================================================================================== #
 
-#Mac
+# #Mac
 # my_directory <- "/Volumes/One Touch/RBMB"
 # setwd(paste0(my_directory,"/TB"))
 # .libPaths("/Volumes/One Touch/rlibrary")
 
-#Windows
+# Windows
 my_directory <- "C:/Users/165861_admin/OneDrive - UTS/Documents/RBMB"
 setwd(file.path(my_directory,"TB"))
 .libPaths("C:/Users/165861_admin/OneDrive - UTS/rlibrary")
@@ -48,7 +46,7 @@ if(!exists(training.dir)) dir.create(training.dir)
 current_roc_dir <- training.dir
 if(!exists(file.path(current_roc_dir, "Importance"))) dir.create(file.path(current_roc_dir, "Importance"))
 
-current_importance_dir <- file.path(TBT0vsHCT0.dir, "Importance", "train_16")
+current_importance_dir <- file.path(current_roc_dir, "Importance", "train_16")
 # current_importance_dir <- file.path(current_roc_dir, "Importance", "train_46")
 if(!exists(current_importance_dir)) dir.create(current_importance_dir)
 
@@ -109,10 +107,6 @@ expression_auc <- expression_auc[T0_samples,]
 # ================================================================================== #
 # 2. ORDER GENES BY PERMUTATION IMPORTANCE =========================================
 # ================================================================================== #
-
-current_importance_dir <- file.path(TBT0vsHCT0.dir, "Importance", "train_16")
-# current_importance_dir <- file.path(current_roc_dir, "Importance", "train_46")
-if(!exists(current_importance_dir)) dir.create(current_importance_dir)
 
 
 ## Define Repeated K-Fold CV Parameters 
@@ -336,6 +330,8 @@ write(note, file = file.path(current_importance_dir,"description_of_this_run.txt
 
 
 #ML_16
+top_features_16 <- top_features_cv
+
 top_features_16 <- read.csv(file.path(current_importance_dir, "top_features.csv"))
 top_features_16 <- top_features_16$x
 
@@ -366,14 +362,14 @@ gene_sets <- list()
 #(This is T0_upregulated reordered by importance)
 # top_features_cv <- top_features_16 #ordered by importance in 16 genes #ML_16
 # top_features_cv <- T0_upregulated #ordered by pval #Pval
-top_features_cv <- top_features_46B[1:16] #ordered by importance in 46 genes #ML_top16_of46
+# top_features_cv <- top_features_46B[1:16] #ordered by importance in 46 genes #ML_top16_of46
 
 current_roc_dir 
 if(!exists(file.path(current_roc_dir, "GSVA"))) dir.create(file.path(current_roc_dir, "GSVA"))
 
-# current_gsva_dir <- file.path(current_roc_dir, "GSVA", "ML_16")
+current_gsva_dir <- file.path(current_roc_dir, "GSVA", "ML_16")
 # current_gsva_dir <- file.path(current_roc_dir, "GSVA", "Pval")
-current_gsva_dir <- file.path(current_roc_dir, "GSVA", "ML_top16_of46")
+# current_gsva_dir <- file.path(current_roc_dir, "GSVA", "ML_top16_of46")
 
 if(!exists(current_gsva_dir)) dir.create(file.path(current_gsva_dir))
 
@@ -385,8 +381,8 @@ note <- paste0(
   "5 Repeat 5 CV RF Model trained on 46 upregulated genes, assessed permutation importance on 46 genes.\n",
   # "16 upregulated genes ordered by adj.P.Val \n",
   str_c(top_features_cv, collapse = " "),
-  "\nTook the top 16 of those ML-ordered 46 genes, Now run GSVA with 16 sets")
-# "\nTook those 16 genes ordered by adj.P.Val, Now run GSVA with 16 sets")
+  # "\nTook the top 16 of those ML-ordered 46 genes, Now run GSVA with 16 sets")
+"\nTook those 16 genes ordered by adj.P.Val, Now run GSVA with 16 sets")
 
 write(note, file = file.path(current_gsva_dir,"description_of_this_run.txt"))
 
@@ -706,56 +702,73 @@ names(gene_sets) <- c("genesig_A_6", "genesig_B_6", "genesig_D_6", "genesig_D_7"
                       "genesig_E_6", "genesig_E_7", "genesig_E_8", "genesig_F_6", "genesig_F_7", "genesig_F_8")
 
 
-### For DISEASE ----
-#Make Disease a factor
-Disease <- clinical$Disease
-expression_auc <- as.data.frame(cbind(t(expression), Disease = Disease))#rows are samples instead of genes here
 
-expression_auc[,"Disease"] <- factor(expression_auc[,"Disease"])
-
-#Make gene expression numeric
-expression_auc[,1:(ncol(expression_auc)-1)] <- sapply(expression_auc[,1:(ncol(expression_auc)-1)], as.numeric)
+#FIX THIS
 
 #Subset
-row.names(expression_auc) == row.names(clinical)
-T0_samples <- row.names(clinical)[which(clinical$condition == "HC_T0" | clinical$condition == "TB_T0")]
+# case = c("TB_T2", "TB_T4", "TB_T6", "HC_T6")
+# control = c("TB_T0", "TB_T0", "TB_T0", "HC_T0")
+# case_and_control <- cbind(case, control)
+# 
+# # TB_T2_T0_samples <- row.names(clinical)[which(clinical$condition == "TB_T2" | clinical$condition == "TB_T0")]
+# # expression_auc <- expression_auc[TB_T2_T0_samples,]
+# 
+# # TB_T4_T0_samples <- row.names(clinical)[which(clinical$condition == "TB_T4" | clinical$condition == "TB_T0")]
+# # expression_auc <- expression_auc[TB_T4_T0_samples,]
+# 
+# # TB_T6_T0_samples <- row.names(clinical)[which(clinical$condition == "TB_T6" | clinical$condition == "TB_T0")]
+# # expression_auc <- expression_auc[TB_T6_T0_samples,]
+# 
+# HC_T6_T0_samples <- row.names(clinical)[which(clinical$condition == "HC_T6" | clinical$condition == "HC_T0")]
+# expression_auc <- expression_auc[HC_T6_T0_samples,]
 
 
-expression_auc <- expression_auc[T0_samples,]
+combined_summary_results <- data.frame(Gene_set = names(gene_sets),Genes = unlist(lapply(gene_sets, function (x) paste(x,collapse = ","))))
 
+roc_func <- function(type, case, control){
+  
+  if(type == "Disease"){
+  
+  ### For DISEASE ----
+  #Make Disease a factor
+  Disease <- clinical$Disease
+  expression_auc <- as.data.frame(cbind(t(expression), Disease = Disease))#rows are samples instead of genes here
+  
+  expression_auc[,"Disease"] <- factor(expression_auc[,"Disease"])
+  
+  #Make gene expression numeric
+  expression_auc[,1:(ncol(expression_auc)-1)] <- sapply(expression_auc[,1:(ncol(expression_auc)-1)], as.numeric)
+  
+  #Subset
+  row.names(expression_auc) == row.names(clinical)
+  T0_samples <- row.names(clinical)[which(clinical$condition == "HC_T0" | clinical$condition == "TB_T0")]
+  
+  
+  expression_auc <- expression_auc[T0_samples,]
+  }
+  
+  
+  if(type == "Timepoint"){
 
-### For TIMEPOINT -----
-Timepoint <- clinical$Timepoint
-expression_auc <- as.data.frame(cbind(t(expression), Timepoint = Timepoint))#rows are samples instead of genes here
-
-
-#Make gene expression numeric
-expression_auc[,1:(ncol(expression_auc)-1)] <- sapply(expression_auc[,1:(ncol(expression_auc)-1)], as.numeric)
-
-row.names(expression_auc) == row.names(clinical)
-
-
-#Subset
-
-# case_and_control <- as.data.frame(case = c("TB_T2", "TB_T4", "TB_T6", "HC_T6"), control = c("TB_T0", "TB_T0", "TB_T0", "HC_T0"))
-
-# TB_T2_T0_samples <- row.names(clinical)[which(clinical$condition == "TB_T2" | clinical$condition == "TB_T0")]
-# expression_auc <- expression_auc[TB_T2_T0_samples,]
-
-# TB_T4_T0_samples <- row.names(clinical)[which(clinical$condition == "TB_T4" | clinical$condition == "TB_T0")]
-# expression_auc <- expression_auc[TB_T4_T0_samples,]
-
-# TB_T6_T0_samples <- row.names(clinical)[which(clinical$condition == "TB_T6" | clinical$condition == "TB_T0")]
-# expression_auc <- expression_auc[TB_T6_T0_samples,]
-
-HC_T6_T0_samples <- row.names(clinical)[which(clinical$condition == "HC_T6" | clinical$condition == "HC_T0")]
-expression_auc <- expression_auc[HC_T6_T0_samples,]
-
-
-#Make Timepoint a factor
-expression_auc[,"Timepoint"] <- factor(expression_auc[,"Timepoint"])
-
-
+  ### For TIMEPOINT -----
+  Timepoint <- clinical$Timepoint
+  expression_auc <- as.data.frame(cbind(t(expression), Timepoint = Timepoint))#rows are samples instead of genes here
+  
+  
+  #Make gene expression numeric
+  expression_auc[,1:(ncol(expression_auc)-1)] <- sapply(expression_auc[,1:(ncol(expression_auc)-1)], as.numeric)
+  
+  row.names(expression_auc) == row.names(clinical)
+  
+  
+  #Subset
+  subset_samples<- row.names(clinical)[which(clinical$condition == case | clinical$condition == control)]
+  expression_auc <- expression_auc[subset_samples,]
+ 
+   #Make Timepoint a factor
+  expression_auc[,"Timepoint"] <- factor(expression_auc[,"Timepoint"])
+  }
+  
 # Define parameters for 5x5 CV
 num_folds <- 5  # Number of folds for k-fold CV
 repeats <- 5    # Number of repetitions for CV
@@ -789,7 +802,7 @@ for (set_name in names(gene_sets)) {
     set.seed(base_seed + i)
     
     # Create stratified folds for this repetition (based on  factor)
-    cv_folds <- caret::createFolds(expression_auc$Disease, k = num_folds, list = TRUE) #note, using expression instead of expression_auc$Timepoint here would have done the same thing. Because create folds just gives you indices for each fold
+    cv_folds <- caret::createFolds(expression_auc[,type], k = num_folds, list = TRUE) #note, using expression instead of expression_auc$Timepoint here would have done the same thing. Because create folds just gives you indices for each fold
     
     # Manually validate/verify that in each fold, there is an even number of HC and TB
     # table(expression_auc[cv_folds[[5]], "Timepoint"])
@@ -806,24 +819,24 @@ for (set_name in names(gene_sets)) {
       
       
       # Step 1: GSVA on training data (transform gene features into a composite score)
-      gsvapar_train <- gsvaParam(t(train_data[, !colnames(train_data) == "Disease"]), 
+      gsvapar_train <- gsvaParam(t(train_data[, !colnames(train_data) == type]), 
                                  gene_set_list, 
                                  maxDiff = TRUE, 
                                  minSize = 1)
       gsva_train <- gsva(gsvapar_train)
       
       # Step 2: GSVA on test data
-      gsvapar_test <- gsvaParam(t(test_data[, !colnames(test_data) == "Disease"]), 
+      gsvapar_test <- gsvaParam(t(test_data[, !colnames(test_data) == type]), 
                                 gene_set_list, 
                                 maxDiff = TRUE, 
                                 minSize = 1)
       gsva_test <- gsva(gsvapar_test)
       
       # Prepare training data for GLM
-      glm_train_data <- data.frame(Score = gsva_train[1, ], Group = train_data$Disease)
+      glm_train_data <- data.frame(Score = gsva_train[1, ], Group = train_data[,type])
       
       # The GLM model we make will be used to predict Timepoint based on the gsva scores in the test set
-      glm_test_data  <- data.frame(Score = gsva_test[1, ], Group = test_data$Disease) 
+      glm_test_data  <- data.frame(Score = gsva_test[1, ], Group = test_data[,type]) 
       
       # THE GSVA SCORE IS WHAT IS USED FOR CLASSIFICATION. it is THE PREDICTOR. The gsva score is used by the model to predict Timepoint. We then apply this model to the test set to predict Timepoint. We calculate the ROC (false pos vs false neg rate) to see what threshold is a good classifier
       
@@ -847,7 +860,7 @@ for (set_name in names(gene_sets)) {
       #If the ROC curve is closer to the top-left corner (where FPR is 0 and TPR is 1), it indicates that the model is very good at distinguishing between positive and negative classes.
       roc_obj <- roc(glm_test_data$Group, test_probs)
       
-      roc_obj_results[[fold]] <- roc_obj 
+      # roc_obj_results[[fold]] <- roc_obj 
       
       # There are 29 different sensitivty and specificity scores, associated with 29 thresholds
       # There are 29 samples in this fold of test_prob, hence why 29 thresholds
@@ -866,9 +879,9 @@ for (set_name in names(gene_sets)) {
       #if you set the threshold lower (eg 0.01) The model is more likely to predict "positive" for most instances but that = higher false positive rate and higher true positive rate. Higher threshold = lower false positive rate but also lower true positive rate 
       
       # Step 6: Convert probabilities to predictions/classifications using optimal threshold
-      predicted_classes <- factor(ifelse(test_probs >= optimal_threshold, "TB", "HC"), #We assign TB to samples with a test probability more than the optimal threshold
-                                  levels = c("HC", "TB"))
-      actual_classes <- factor(glm_test_data$Group, levels = c("HC", "TB"))
+      predicted_classes <- factor(ifelse(test_probs >= optimal_threshold, case, control), #We assign TB to samples with a test probability more than the optimal threshold
+                                  levels = c(control, case))
+      actual_classes <- factor(glm_test_data$Group, levels = c(control, case))
       
       # Calculate confusion matrix for this model
       #used to evaluate the performance of a classification algorithm. It compares the actual labels (true outcomes) to the predicted labels, providing a detailed breakdown of the model's accuracy, precision, recall, F1-score, and other relevant metrics.
@@ -923,7 +936,7 @@ for (set_name in names(gene_sets)) {
     }
   }
   
-  saveRDS(all_results,file = file.path(signature_set.dir, paste0(set_name,"_TBT0vsHCT0_all_results.RDS")))
+  saveRDS(all_results,file = file.path(signature_set.dir, paste0(set_name, "_",case,"vs",control,"_all_results.RDS")))
   # 'results' contains the specified results above (confusion matrix, AUC, senstivity and specificity) from every repeat and fold now
   
   # Record end time and calculate elapsed time
@@ -939,13 +952,13 @@ for (set_name in names(gene_sets)) {
 
 
 # Save overall results
-saveRDS(nested_cv_results, file = file.path(signature_set.dir,"TBT0vsHCT0_nested_cv_results_gene_sets.RDS"))
+saveRDS(nested_cv_results, file = file.path(signature_set.dir, paste0(case,"vs",control,"_nested_cv_results_gene_sets.RDS")))
 # saveRDS(nested_cv_results, file = file.path(results.dir, "nested_cv_results_single_gene.RDS"))
 
 cat("Cross-validation and confusion matrix calculation complete.\n")
 
 # Summarize results
-summary_results <- data.frame(
+summary_results  <- data.frame(
   Gene_Set = names(nested_cv_results),
   Mean_AUC = sapply(nested_cv_results, function(x) x$Mean_AUC),
   t(sapply(nested_cv_results, function(x) paste(round(x$AUCs, 3)))))
@@ -954,15 +967,19 @@ summary_results <- data.frame(
 
 print(summary_results)
 
-# combined_summary_results <- data.frame(Gene_set = names(gene_sets),Genes = unlist(lapply(gene_sets, function (x) paste(x,collapse = ","))))
-combined_summary_results <- cbind(combined_summary_results, "TBT0vsHCT0" = summary_results$Mean_AUC)
 
+# <<- to save it as global variable (outside of the function)
+combined_summary_results <<- cbind(combined_summary_results,  summary_results$Mean_AUC)
+colnames(combined_summary_results)[ncol(combined_summary_results)] <- paste0(case,"vs",control)
+}
 
-write.csv(combined_summary_results, file = file.path(signature_set.dir, "all_auc_results_6genes2.csv"))
+roc_func(type = "Disease", case = "TB_T0", control = "HC_T0")
+roc_func(type = "Timepoint", case = "TB_T2", control = "TB_T0")
+roc_func(type = "Timepoint", case = "TB_T4", control = "TB_T0")
+roc_func(type = "Timepoint", case = "TB_T6", control = "TB_T0")
+roc_func(type = "Timepoint", case = "HC_T6", control = "HC_T0")
 
-
-
-
+write.csv(combined_summary_results, file = file.path(signature_set.dir, "all_auc_results_7genes.csv"))
 
 
 
@@ -1230,8 +1247,8 @@ ggsave(rocplot,
 
 gene_set_list <- list(c("IFITM1","CD274","TAP1","GBP5","GBP2","S100A8","FCGR1CP"))
 
-# clinical <- read.csv("C:/Users/165861_admin/OneDrive - UTS/Documents/RBMB/TB/data/processed/post-QC/clinical.csv", row.names = 1)
-# expression <- as.matrix(read.csv("C:/Users/165861_admin/OneDrive - UTS/Documents/RBMB/TB/data/processed/post-QC/expression.csv", row.names = 1, check.names = FALSE))
+# clinical <- read.csv("/Volumes/One Touch/RBMB/TB/data/processed/post-QC/clinical.csv", row.names = 1)
+# expression <- as.matrix(read.csv("/Volumes/One Touch/RBMB/TB/data/processed/post-QC/expression.csv", row.names = 1, check.names = FALSE))
 
 gsvapar <- gsvaParam(as.matrix(expression), 
                      gene_set_list, 
@@ -1281,8 +1298,6 @@ library(ggplot2)
 plot(density(expression)) #quite a long tail on the right - not normal
 ks.test(expression, "pnorm", mean(expression), sd(expression))
 
-install.packages("nortest")
-
 library("nortest")
 ad.test(expression)
 
@@ -1291,15 +1306,17 @@ ks.test(expression, "pnorm")
 qqnorm(expression)
 qqline(expression, col="red")
 
+
+# ================================================================================== #
+##  PAIRED COMPARISONS  ===================================================================
+# ================================================================================== #
+
+ 
 boxplot_gsva$V1 <- as.numeric(boxplot_gsva$V1)
 boxplot_gsva$group <- factor(boxplot_gsva$group)
 
 # View(pivot_wider(boxplot_gsva, names_from = group, values_from = PID))
 
-
-# ================================================================================== #
-##  PAIRED COMPARISONS  ===================================================================
-# ================================================================================== #
 # We need to do per-comparison filtering
 # We can't just filter out the unpaired samples and run a wilcox_test on that because a paired wilcoxin rank sum test will expect one value from each group 
 # Say we are comparing TB_T0 and TB_T6. There may be patients with TB_T0 and TB_T2 but not TB_T6. They’ll still be present in the data and wilcox_test will extract the TB_T0 for that patient (since the comparison specificed TB_T0 and TB_T6. However, since the test is paired it won't work because wilcox_test needs one measurement from Group1 (TB_T0) and one from Group2 (TB_T6)
@@ -1385,7 +1402,7 @@ boxplotfinal2 <- ggplot(boxplot_gsva, aes(
   #             size = 2.5,
   #             width = 0.3) +
   
-  #For paired boxplots
+  # #For paired boxplots
   geom_point(aes(color = group))+
   geom_line(aes(group = PID), color = "black", alpha = 0.2) +
   
@@ -1416,7 +1433,7 @@ ggsave(boxplotfinal2, filename = file.path(genesig_D_7_figures.dir, "gsva_all_pa
 
 
 
-
+# genesig_D_7_figures.dir <- "/Volumes/One Touch/RBMB/TB/output/signature/genesig_D_7/figures"
 # ================================================================================== #
 # 8. CORRELATE CLINICAL FEATURES WITH GENESIG_D_7 =================================================
 # ================================================================================== #

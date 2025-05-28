@@ -22,11 +22,10 @@ if(!exists(output.dir)) dir.create(output.dir)
 if(!exists(results.dir)) dir.create(results.dir)
 if(!exists(figures.dir)) dir.create(figures.dir)
 
+
 # ================================================================================== #
 # 1. LOAD IN DATA ==================================================================
 # ================================================================================== #
-
-#CONTINUE ON FROM SCRIPT 1_TB_DATAWRANGLING.r
 
 # ================================================================================== #
 # 2. QUALITY CONTROL ==================================================================
@@ -38,6 +37,8 @@ clin <- clinical
 
 #SET FOLDER
 filt <- "post-filt"
+
+pca_fig_func <- function(filt){
 pca_res <- prcomp(t(as.data.frame(exp)), scale. = TRUE, center = TRUE) #center = TRUE
 
 pca.dir <- file.path(figures.dir, "pca")
@@ -152,12 +153,16 @@ eigen.pca <- pca(expression,
                  scale = TRUE,
 )
 
+png(filename = file.path(pca.dir,filt, paste0("eigencorplot.png")), width = 1400, height = 900, units = "px")
 
 eigencorplot(eigen.pca,
              metavars = c(colnames(clinical_numeric)))
 
+dev.off()
+}
 
-
+pca_fig_func(filt = "post-filt")
+pca_fig_func(filt = "pre-filt")
 
 
 # ================================================================================== #
