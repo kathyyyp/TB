@@ -236,7 +236,7 @@ expr_long <- as.data.frame(expression) %>%
 expr_long <- cbind(expr_long, clinical[match(expr_long$sample_id, clinical$sample),])
 
 png(filename = file.path(figures.dir, "all_genes_boxplot.png"),
-    width = 15, height = 15, units = "cm", res = 1200)
+    width = 30, height = 20, units = "cm", res = 800)
 
 ggplot(expr_long, aes(x = disease, y = expression, color=disease)) +
   geom_boxplot(outlier.shape=NA, alpha=0.2) +
@@ -246,13 +246,18 @@ ggplot(expr_long, aes(x = disease, y = expression, color=disease)) +
                show.legend = TRUE) +
   stat_compare_means(method = "wilcox.test", 
                      size = 3,
+                     comparisons = list(c("HC_T0", "TB_T0")),
                      label.y.npc = 0.9,
                      aes(label = ..p.format..))+
-  facet_wrap(~gene, scales="free_y") +
+  facet_wrap(~gene, scales="free_y", ncol = 4) +
   ylab("Expression (2^-delta Ct)") +
   xlab("Disease") +
-  theme_minimal() +
-  theme(legend.position = "none")
+  theme_bw() +
+  theme(legend.position = "bottom",
+        axis.text.x = element_blank(),      
+        axis.ticks.x = element_blank()
+        ) +
+  scale_y_continuous(expand = expansion(mult = c(0.05, 0.15)))
 
 
 dev.off()
@@ -312,21 +317,30 @@ dev.off()
 
 
 # ================================================================================== #
-# 7) SCALED MEAN  =================================================
+# 7) SCALED+CENTERED AND CENTERED MEAN  =================================================
 # ================================================================================== #
 
 ###Insert each of the signatures where "il17sig1" is and run this code for each of the signatures. 
 # il17ind1<-match(il17sig1,genes)
 
-row.names(expression)
+scaledcentered_mean_func <- function(number_of_genes = "7"){
+  
 expr_set<-expression[row.names(expression),]
+
+if(number_of_genes == "6"){
+  expr_set <- expr_set[!row.names(expr_set) == "S100A8",]
+}
+
+if(number_of_genes == "5"){
+  expr_set <- expr_set[-c(which(row.names(expr_set) == "S100A8" | row.names(expr_set) == "CD274")),]
+}
 
 #transpose for scaling
 expr_set<-t(expr_set)
 
-summary(expr_set)
-boxplot(expr_set)
-hist(expr_set)
+# summary(expr_set)
+# boxplot(expr_set)
+# hist(expr_set)
 
 #center and scale for one score, center only for the other
 #centers and/or scales the data based on its mean and standard deviation (so that it has a mean of 0 and a standard deviation of 1)
@@ -356,21 +370,34 @@ for(i in 1:nrow(expr_center)) {
   sig_center[i]<-mean(expr_center[i,])
 }
 
-
-
-
 mean_standardised<-rbind(sig_scale,sig_center)
+colnames(mean_standardised) <- colnames(expression)
 
+return(list(scores = mean_standardised,
+            gene_list = colnames(expr_set)))
+}
 
-
-
+listofstandardised_scores <- list()
+listofstandardised_scores[["7_genes"]] <- scaledcentered_mean_func()
+listofstandardised_scores[["6_genes"]] <- scaledcentered_mean_func(number_of_genes = "6")
+listofstandardised_scores[["5_genes"]] <- scaledcentered_mean_func(number_of_genes = "5")
 
 # ================================================================================== #
 # 7. PLOT BOXPLOTS FOR VALIDATION =================================================
 # ================================================================================== #
 
+g =  names(listofstandardised_scores)[1]
 ## SCALED & CENTERED =================================================
-boxplot_data <- as.data.frame(cbind(score = mean_standardised["sig_scale",],
+#loop over 5, 6 and 7genes
+for(g in names(listofstandardised_scores)){
+  
+  this.figures.dir <- file.path(figures.dir, g)
+  if(!exists(this.figures.dir)) dir.create(this.figures.dir)
+  
+  score_data <- listofstandardised_scores[[g]][["scores"]]
+  gene_list <- listofstandardised_scores[[g]][["gene_list"]]
+  
+boxplot_data <- as.data.frame(cbind(score = score_data["sig_scale",],
                                     group = as.character(clinical$disease),
                                     PID = as.character(clinical$sample)))
 
@@ -420,14 +447,14 @@ boxplotfinal2 <- ggplot(boxplot_data, aes(
   geom_boxplot(aes(color = group),position = position_dodge(1)) +
   
   # Unpaired boxplot
-  # geom_jitter(aes(color = group),
-  #             alpha = 0.5,
-  #             size = 2.5,
-  #             width = 0.3) +
-  
+  geom_jitter(aes(color = group),
+              alpha = 0.5,
+              size = 2.5,
+              width = 0.3) +
+
   #Paired boxplot
-  geom_point(aes(color = group))+
-  geom_line(aes(group = PID), color = "black", alpha = 0.2) +
+  # geom_point(aes(color = group))+
+  # geom_line(aes(group = PID), color = "black", alpha = 0.2) +
   
   stat_pvalue_manual(stat.table,
                      label = "p",
@@ -438,24 +465,24 @@ boxplotfinal2 <- ggplot(boxplot_data, aes(
                geom = "point", shape = 21, size =4,
                show.legend = TRUE) +
   
-  # # scale_x_discrete(labels= c("Control" = "Control", "Mild.moderate.COPD" = "mCOPD", "Severe.COPD" = "sCOPD"))+
-  # scale_y_continuous(expand = c(0.07, 0, 0.07, 0)) +
-  
-  labs(title = paste0("Mean of scaled & centered expression"),
-       caption = "Signature: IFITM1, CD274, TAP1, GBP5, GBP2, S100A8, FCGR1CP") +
+
+  labs(title = paste0("HB_T0 vs TB_T0 expression"),
+       caption = paste("Signature:", paste0(gene_list, collapse = ","))) +
   ylab (label = "Mean of scaled & centered expression") +
   xlab (label = "Condition")
 
-ggsave(boxplotfinal2, filename = file.path(figures.dir, "scaledcentered_validation_all_paired.png"), 
-       width = 3500, 
-       height = 3200, 
+ggsave(boxplotfinal2, filename = file.path(this.figures.dir, paste0(g,"_meanscaledcentered_validation__boxplot.png")), 
+       width = 2500, 
+       height = 2200, 
        units = "px" )
 
 
 
 
+
+
 ## CENTERED =================================================
-boxplot_data <- as.data.frame(cbind(score = mean_standardised["sig_center",],
+boxplot_data <- as.data.frame(cbind(score = score_data["sig_center",],
                                     group = as.character(clinical$disease),
                                     PID = as.character(clinical$sample)))
 
@@ -504,14 +531,14 @@ boxplotfinal2 <- ggplot(boxplot_data, aes(
   geom_boxplot(aes(color = group),position = position_dodge(1)) +
   
   # Unpaired boxplot
-  # geom_jitter(aes(color = group),
-  #             alpha = 0.5,
-  #             size = 2.5,
-  #             width = 0.3) +
+  geom_jitter(aes(color = group),
+              alpha = 0.5,
+              size = 2.5,
+              width = 0.3) +
   
   #Paired boxplot
-  geom_point(aes(color = group))+
-  geom_line(aes(group = PID), color = "black", alpha = 0.2) +
+  # geom_point(aes(color = group))+
+  # geom_line(aes(group = PID), color = "black", alpha = 0.2) +
   
   stat_pvalue_manual(stat.table,
                      label = "p",
@@ -521,18 +548,16 @@ boxplotfinal2 <- ggplot(boxplot_data, aes(
   stat_summary(fun.y = mean, fill = "red",
                geom = "point", shape = 21, size =4,
                show.legend = TRUE) +
+
   
-  # # scale_x_discrete(labels= c("Control" = "Control", "Mild.moderate.COPD" = "mCOPD", "Severe.COPD" = "sCOPD"))+
-  # scale_y_continuous(expand = c(0.07, 0, 0.07, 0)) +
-  
-  labs(title = paste0("Mean of centered expression"),
-       caption = "Signature: IFITM1, CD274, TAP1, GBP5, GBP2, S100A8, FCGR1CP") +
+  labs(title = paste0("HB_T0 vs TB_T0 expression"),
+       caption = paste("Signature:", paste0(gene_list, collapse = ","))) +
   ylab (label = "Mean of centered expression") +
   xlab (label = "Condition")
 
-ggsave(boxplotfinal2, filename = file.path(figures.dir, "centered_validation_all_paired.png"), 
-       width = 3500, 
-       height = 3200, 
+ggsave(boxplotfinal2, filename = file.path(this.figures.dir, paste0(g,"_meancentered_validation_boxplot.png")), 
+       width = 2500, 
+       height = 2200, 
        units = "px" )
 
 
@@ -545,14 +570,12 @@ ggsave(boxplotfinal2, filename = file.path(figures.dir, "centered_validation_all
 # Since we can't do GSVA here (our new data has the same 7 genes), we can take our mean scaled and centered data (we already calculated the mean expression of the new 7 genes per sample, scaled and centered)
 # Mean of expression (scaled & centered) = the values are comparable bc they reflect how high or low expression of the genes are in that sample compared to other samples
 
-genes <- row.names(expression)
-mean_standardised<-rbind(sig_scale,sig_center)
-colnames(mean_standardised) <- colnames(expression)
 
-mean_standardised_scores <- as.data.frame(t(mean_standardised))
-mean_standardised_scores$group <- clinical[colnames(mean_standardised), "group"]
+mean_standardised_scores <- as.data.frame(t(as.matrix(score_data)))
+mean_standardised_scores$group <- clinical[colnames(score_data), "group"]
 
 mean_standardised_scores$group <- factor(mean_standardised_scores$group, levels = c("HC_T0", "TB_T0"))
+
 
 #scaled+centered
 glm_model <- glm(group ~ sig_scale, data = mean_standardised_scores, family = binomial)
@@ -581,7 +604,7 @@ disease_roc <- ggplot(roc_data, aes(x = FPR, y = TPR, color = legend)) +
   geom_line(size = 1.2) +
   theme_bw() +
   geom_abline(slope = 1, intercept = 0, linetype = "dashed", color = "black")  +
-  guides(colour = guide_legend(nrow = 3)) +
+  guides(colour = guide_legend(nrow = 1)) +
   theme(legend.position = "bottom",
         axis.title = element_text(size = 24),
         axis.text = element_text(size = 24),
@@ -592,9 +615,61 @@ disease_roc <- ggplot(roc_data, aes(x = FPR, y = TPR, color = legend)) +
     x = "FPR (1 - Specificity)",
     y = "TPR (Sensitivity)",
     color = "Comparison",
-    caption = "Signature: IFITM1, CD274, TAP1, GBP5, GBP2, S100A8, FCGR1CP") 
+    caption = paste("Signature:", paste0(gene_list, collapse = ","))) 
+  
+ggsave(disease_roc, filename = file.path(this.figures.dir, paste0(g,"_meanscaledcentered_roc.png")), 
+       width = 2500, 
+       height = 3000, 
+       units = "px" )
 
-ggsave(disease_roc, filename = file.path(figures.dir, "scaledcentered_roc.png"), 
-       width = 3200, 
-       height = 3500, 
-       units = "px")
+
+
+
+
+#centered
+glm_model <- glm(group ~ sig_center, data = mean_standardised_scores, family = binomial)
+
+# Predict probabilities
+test_probs <- predict(glm_model, type = "response")
+
+# Compute ROC and AUC
+roc_obj <- roc(mean_standardised_scores$group, test_probs)
+plot(roc_obj, print.auc = TRUE)
+auc(roc_obj)
+auc_ci <- ci.auc(roc_obj)
+
+
+roc_data <- data.frame(
+  TPR = rev(roc_obj$sensitivities),  # True Positive Rate
+  FPR = rev(1 - roc_obj$specificities),  # False Positive Rate
+  # Comparison = comparison,
+  auc = rev(roc_obj$auc),
+  ci = paste0(round(as.numeric(auc_ci[1]),2), "-", round(as.numeric(auc_ci[3]),2)))
+
+roc_data$legend <- paste0("HC_T0 vs TB_T0: \n AUC = ", 
+                          round(roc_data$auc, 2), " (", roc_data$ci, ")")
+
+disease_roc <- ggplot(roc_data, aes(x = FPR, y = TPR, color = legend)) +
+  geom_line(size = 1.2) +
+  theme_bw() +
+  geom_abline(slope = 1, intercept = 0, linetype = "dashed", color = "black")  +
+  guides(colour = guide_legend(nrow = 1)) +
+  theme(legend.position = "bottom",
+        axis.title = element_text(size = 24),
+        axis.text = element_text(size = 24),
+        legend.text = element_text(size = 16),
+        title = element_text(size = 20)) +
+  labs(
+    title = "ROC - HC_T0 vs TB_T0",
+    x = "FPR (1 - Specificity)",
+    y = "TPR (Sensitivity)",
+    color = "Comparison",
+    caption = paste("Signature:", paste0(gene_list, collapse = ",")))
+  
+ggsave(disease_roc, filename = file.path(this.figures.dir, paste0(g,"_meancentered_roc.png")), 
+       width = 2500, 
+       height = 3000, 
+       units = "px" )
+
+} #close gene loop
+#scaled + centered is better
