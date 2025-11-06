@@ -4,9 +4,9 @@
 # ================================================================================== #
 
 # #Mac
-my_directory <- "/Users/kathyphung/Library/CloudStorage/OneDrive-UTS/Documents/RBMB"
-setwd(paste0(my_directory,"/TB"))
-.libPaths("/Volumes/One Touch/rlibrary")
+# my_directory <- "/Users/kathyphung/Library/CloudStorage/OneDrive-UTS/Documents/RBMB"
+# setwd(paste0(my_directory,"/TB"))
+# .libPaths("/Volumes/One Touch/rlibrary")
 
 # Windows
 my_directory <- "C:/Users/165861_admin/OneDrive - UTS/Documents/RBMB/TB"
@@ -118,10 +118,11 @@ listoffiles2 <- lapply(X = listoffiles, function(list_item){
 # 5. NORMALISE (delta Ct) ==========================================================
 # ================================================================================== #
   
+  #Calculate relative expression normalized to housekeeping genes
   alldata_genes_ct<- all_data[!(row.names(all_data) == "B2M" |row.names(all_data) == "GAPDH" ),]
   alldata_genes_ct <- alldata_genes_ct[,-which(colnames(alldata_genes_ct) == "3201400")]
   
-  ### Using B2M as the housekeeping gene --------------------------------------------------------------------
+  ### 1) Using B2M as the housekeeping gene --------------------------------------------------------------------
   b2m_means <- all_data[row.names(all_data) == "B2M",]
   delta_ct_b2m <- alldata_genes_ct
   # Change to delta ct, which is roughly log2-scaled (since PCR amplification is exponential). every unit difference = 2x change in expression
@@ -131,7 +132,7 @@ listoffiles2 <- lapply(X = listoffiles, function(list_item){
   #### Transform to linear scale (higher value = higher expression)
   normdata_b2m_hk <- 2^(-delta_ct_b2m)
    
-  ### Using GAPDH as the housekeeping gene --------------------------------------------------------------------
+  ### 2) Using GAPDH as the housekeeping gene --------------------------------------------------------------------
   gapdh_means <- all_data[row.names(all_data) == "GAPDH",]
   delta_ct_gapdh <- alldata_genes_ct
   
@@ -141,19 +142,43 @@ listoffiles2 <- lapply(X = listoffiles, function(list_item){
   #### Transform to linear scale (higher value = higher expression)
   normdata_gapdh_hk <- 2^(-delta_ct_gapdh)
   
+  ### 3) Using average of B2M & GAPDH as the housekeeping gene --------------------------------------------------------------------
+  twohk_means <- as.data.frame(t(colMeans(all_data[row.names(all_data) == "GAPDH" | row.names(all_data) == "B2M",])))
+  delta_ct_twohk <- alldata_genes_ct
+  
+  for (s in colnames(delta_ct_twohk)) {
+    delta_ct_twohk[[s]] <- delta_ct_twohk[[s]] - twohk_means[1, s]
+  }
+  #### Transform to linear scale (higher value = higher expression)
+  normdata_twohk <- 2^(-delta_ct_twohk)
+  
 
 write.csv(normdata_b2m_hk, file.path(output.dir, "normdata_b2m_hk.csv"))
 write.csv(normdata_gapdh_hk, file.path(output.dir, "normdata_gapdh_hk.csv"))
+write.csv(normdata_twohk, file.path(output.dir, "normdata_twohk.csv"))
 write.csv(all_data, file.path(output.dir, "all_data_beforenorm.csv"))
 
 which(is.na(as.matrix(delta_ct_b2m)), arr.ind = TRUE)
 #3205033 has NA for CD274 as there were no values for either duplicate
 
 
+#Make clinical file
+clinical <- data.frame(sample = colnames(delta_ct_data))
+clinical$disease <- ifelse(clinical$sample %in% colnames(HC_T0),
+                           "HC_T0",
+                           "TB_T0")
+
+row.names(clinical) <- clinical$sample
+
+
+# ================================================================================== #
+# PCA  =================================================
+# ================================================================================== #
+
 qc.dir <- file.path(validation.dir, "qc")
 if(!exists(qc.dir)) dir.create(qc.dir)
 
-listof_delta_ct <- list(B2M = delta_ct_b2m, GAPDH = delta_ct_gapdh)
+listof_delta_ct <- list(B2M = delta_ct_b2m, GAPDH = delta_ct_gapdh, avg_B2M_GAPDH = normdata_twohk )
 
 for (i in 1:length(listof_delta_ct)){
 #use delta_ct values, pca expects log-like scaling (ct values are exponential)
@@ -164,12 +189,6 @@ pca_res <- prcomp(t(as.data.frame(delta_ct_data[,-which(colnames(delta_ct_data) 
 colnames(delta_ct_data) %in% colnames(HC_T0)
 colnames(delta_ct_data) %in% colnames(TB_T0)
 
-clinical <- data.frame(sample = colnames(delta_ct_data))
-clinical$disease <- ifelse(clinical$sample %in% colnames(HC_T0),
-                           "HC_T0",
-                           "TB_T0")
-
-row.names(clinical) <- clinical$sample
 clinical_pca <- cbind(pca_res$x, clinical[-which(row.names(clinical) == "3205033"),])
 
 png(filename = file.path(qc.dir, paste0(names(listof_delta_ct)[[i]],"_pca5_plot.png")), width = 26, height = 23, units = "cm", res = 1200)
@@ -188,46 +207,47 @@ legend("bottomright", fill = unique(variable), legend = c(levels(variable)), tit
 dev.off()
 }
 
-# ================================================================================== #
-# 6. Z-Score and Mean Signature performance  =========================================================================
-# ================================================================================== #
-# use 2^-delta ct values (linear)  (ie. very right skewed distribution, most values are around zero and some are higher)
-
-figures.dir <- file.path(validation.dir, "figures")
-if(!exists(figures.dir)) dir.create(figures.dir)
-
-## 2) Get groups to be compared --------------------------------------------
-normdata <- normdata_b2m_hk
-if(any(is.na(clinical$disease))){
-  clinical <- clinical[-which(is.na(clinical$disease)),]
-}
-
-clinical$group <-clinical$disease
-table(clinical$group)
-
-
-expression <- as.matrix(normdata)
-
-colnames(expression) == row.names(clinical)
-
-# write.table(expression, file.path("expression.txt"))
-# write.table(clinical, file.path("clinical.txt"))
-
-setwd(file.path(my_directory,"TB", "data", "public", this.accession.no))
-
-# shiny.data.dir <- file.path(my_directory,"TB", "shiny", "data", "public", this.accession.no)
-# if(!exists(shiny.data.dir)) dir.create(shiny.data.dir, recursive = TRUE)
-# write.table(expression, file.path(shiny.data.dir, "expression.txt"))
-# write.table(clinical, file.path(shiny.data.dir, "clinical.txt"))
-
-
-clinical <- clinical[-which(row.names(clinical) == "3205033"),]
-expression <- expression[,-which(colnames(expression) == "3205033")]
-
 
 # ================================================================================== #
 # 6.1. BOXPLOTS FOR ALL 2^-delta Ct  =================================================
 # ================================================================================== #
+
+listof_normdata <- list(B2M = normdata_b2m_hk, GAPDH = normdata_gapdh_hk, avg_B2M_GAPDH = normdata_twohk )
+
+## 2) Get groups to be compared --------------------------------------------
+
+listofresults <- list()
+for (i in names(listof_normdata)){
+  
+this.output.dir <- file.path(validation.dir, i)
+if(!exists(this.output.dir)) dir.create(this.output.dir)
+
+figures.dir <- file.path(this.output.dir, "figures")
+if(!exists(figures.dir)) dir.create(figures.dir)
+
+normdata <- listof_normdata[[i]]
+expression <- as.matrix(normdata)
+
+clinical <- data.frame(sample = colnames(delta_ct_data))
+clinical$disease <- ifelse(clinical$sample %in% colnames(HC_T0),
+                           "HC_T0",
+                           "TB_T0")
+
+row.names(clinical) <- clinical$sample
+
+clinical$group <-clinical$disease
+table(clinical$group)
+
+colnames(expression) == row.names(clinical)
+
+write.table(expression, file.path(this.output.dir, "expression.txt"))
+write.table(clinical, file.path(this.output.dir, "clinical.txt"))
+
+#Contains NA
+clinical <- clinical[-which(row.names(clinical) == "3205033"),]
+expression <- expression[,-which(colnames(expression) == "3205033")]
+
+
 expr_long <- as.data.frame(expression) %>%
   rownames_to_column("gene") %>%
   pivot_longer(-gene, names_to="sample_id", values_to="expression") 
@@ -235,10 +255,8 @@ expr_long <- as.data.frame(expression) %>%
 
 expr_long <- cbind(expr_long, clinical[match(expr_long$sample_id, clinical$sample),])
 
-png(filename = file.path(figures.dir, "all_genes_boxplot.png"),
-    width = 30, height = 20, units = "cm", res = 800)
 
-ggplot(expr_long, aes(x = disease, y = expression, color=disease)) +
+plot <- ggplot(expr_long, aes(x = disease, y = expression, color=disease)) +
   geom_boxplot(outlier.shape=NA, alpha=0.2) +
   geom_jitter(width=0.2, size=1) +
   stat_summary(fun.y = mean, fill = "red",
@@ -252,6 +270,7 @@ ggplot(expr_long, aes(x = disease, y = expression, color=disease)) +
   facet_wrap(~gene, scales="free_y", ncol = 4) +
   ylab("Expression (2^-delta Ct)") +
   xlab("Disease") +
+  labs(caption = paste("Relative expression normalized to", i)) +
   theme_bw() +
   theme(legend.position = "bottom",
         axis.text.x = element_blank(),      
@@ -260,60 +279,8 @@ ggplot(expr_long, aes(x = disease, y = expression, color=disease)) +
   scale_y_continuous(expand = expansion(mult = c(0.05, 0.15)))
 
 
-dev.off()
-
-
-# ================================================================================== #
-# 6A) BOXPLOTS FOR Z-SCORE and MEAN  =================================================
-# ================================================================================== #
-# option A: mean linear expression (2^-delta Ct)
-sig_score_linear <- colMeans(expression)
-
-# Option B: z-score per gene before averaging (to give equal weight)
-expr_z <- t(scale(t(expr_linear)))  # z-score each gene across samples
-sig_score_z <- colMeans(expr_z, na.rm = TRUE)
-
-# Combine and test ---
-results <- data.frame(
-  sample = clinical$sample,
-  disease = clinical$disease,
-  sigscore_linear = sig_score_linear[clinical$sample],
-  sigscore_z = sig_score_z[clinical$sample]
-)
-
-# Boxplot of mean 2^-ΔCt scores
-ggplot(results, aes(x = disease, y = sigscore_linear, color = disease)) +
-  geom_jitter(width = 0.15, size = 2) +
-  geom_boxplot(alpha = 0.3, outlier.shape = NA) +
-  theme_minimal(base_size = 13) +
-  labs(
-    title = "7-gene TB signature validation",
-    y = "Mean 2^-delta Ct (signature score)",
-    x = NULL
-  )
-
-# Wilcoxon test
-wilcox.test(sigscore_linear ~ disease, data = results)
-
-
-png(filename = file.path(figures.dir, "auc_plot.png"),
-    width = 15, height = 15, units = "cm", res = 1200)
-
-## ROC
-roc_obj <- roc(results$disease, results$sigscore_linear, levels = c("HC_T0", "TB_T0"), direction = ">") #direction > means that we expect higher sigscore_linear to indiciate the poisitve class (TB_T0)
-auc(roc_obj)
-plot(roc_obj, print.auc = TRUE, print.auc.y = 0.8, col = "#2E86AB", main = "ROC curve - TB signature")
-
-# Plot with z-scored version
-roc_obj_z <- roc(results$disease, results$sigscore_z, levels = c("HC_T0", "TB_T0"), direction = ">")
-auc(roc_obj_z)
-plot(roc_obj_z, print.auc = TRUE,  add = TRUE, col = "darkorange")
-legend("bottomright", legend = c("Linear mean", "Z-score mean"),
-       col = c("#2E86AB", "darkorange"), lwd = 2, bty = "n")
-
-dev.off()
-
-
+ggsave(plot, filename= file.path(figures.dir, "all_genes_boxplot.png"),
+      width = 22, height = 18, units = "cm")
 
 
 # ================================================================================== #
@@ -382,14 +349,29 @@ listofstandardised_scores[["7_genes"]] <- scaledcentered_mean_func()
 listofstandardised_scores[["6_genes"]] <- scaledcentered_mean_func(number_of_genes = "6")
 listofstandardised_scores[["5_genes"]] <- scaledcentered_mean_func(number_of_genes = "5")
 
+listofresults[[i]] <- listofstandardised_scores
+
+}
+
 # ================================================================================== #
 # 7. PLOT BOXPLOTS FOR VALIDATION =================================================
 # ================================================================================== #
 
-g =  names(listofstandardised_scores)[1]
+for (hk in names(listofresults)){
+  
+listofstandardised_scores <- listofresults[[hk]]
+listofboxplots_scaledcentered <- list()
+listofboxplots_centered <- list()
+
 ## SCALED & CENTERED =================================================
 #loop over 5, 6 and 7genes
 for(g in names(listofstandardised_scores)){
+  
+  this.output.dir <- file.path(validation.dir, hk)
+  if(!exists(this.output.dir)) dir.create(this.output.dir)
+  
+  figures.dir <- file.path(this.output.dir, "figures")
+  if(!exists(figures.dir)) dir.create(figures.dir)
   
   this.figures.dir <- file.path(figures.dir, g)
   if(!exists(this.figures.dir)) dir.create(this.figures.dir)
@@ -397,16 +379,18 @@ for(g in names(listofstandardised_scores)){
   score_data <- listofstandardised_scores[[g]][["scores"]]
   gene_list <- listofstandardised_scores[[g]][["gene_list"]]
   
-boxplot_data <- as.data.frame(cbind(score = score_data["sig_scale",],
+  boxplot_data <- as.data.frame(cbind(score = score_data["sig_scale",],
                                     group = as.character(clinical$disease),
                                     PID = as.character(clinical$sample)))
 
 
 
-gsva_theme <- theme(axis.title = element_text(size = 24),
-                    axis.text = element_text(size = 24),
-                    title = element_text(size = 20),
-                    legend.position = "None") 
+  
+  gsva_theme <- theme(axis.title = element_text(size = 20),
+                      axis.text = element_text(size = 20),
+                      title = element_text(size = 20),
+                      legend.position = "None") 
+  
 
 
 my_comparisons <- list(
@@ -426,16 +410,13 @@ stat.table <- boxplot_data  %>%
               comparisons = my_comparisons) %>%
   add_xy_position(x = "group")
 
-stat.table <- stat.table[which(stat.table$p < 0.05),]
 
 #FOR SCALED+CENTERED
 lowest_bracket <- max(boxplot_data$score) + 0.05*(max(boxplot_data$score))
 stat.table$y.position <- seq(lowest_bracket, by= 0.3, length.out = nrow(stat.table))
 
 
-
-
-boxplotfinal2 <- ggplot(boxplot_data, aes(
+boxplot_scaledcentered <- ggplot(boxplot_data, aes(
   x = factor(group),
   # x = factor(group),
   y = as.numeric(boxplot_data[,1]))) +
@@ -471,27 +452,21 @@ boxplotfinal2 <- ggplot(boxplot_data, aes(
   ylab (label = "Mean of scaled & centered expression") +
   xlab (label = "Condition")
 
-ggsave(boxplotfinal2, filename = file.path(this.figures.dir, paste0(g,"_meanscaledcentered_validation__boxplot.png")), 
-       width = 2500, 
-       height = 2200, 
-       units = "px" )
-
-
+listofboxplots_scaledcentered[[g]] <- boxplot_scaledcentered
+  
+# ggsave(boxplotfinal2, filename = file.path(boxplot.dir, paste0(g,"_meanscaledcentered_validation__boxplot.png")), 
+#        width = 2500, 
+#        height = 2200, 
+#        units = "px" )
 
 
 
 
 ## CENTERED =================================================
-boxplot_data <- as.data.frame(cbind(score = score_data["sig_center",],
+boxplot_data2 <- as.data.frame(cbind(score = score_data["sig_center",],
                                     group = as.character(clinical$disease),
                                     PID = as.character(clinical$sample)))
 
-
-
-gsva_theme <- theme(axis.title = element_text(size = 24),
-                    axis.text = element_text(size = 24),
-                    title = element_text(size = 20),
-                    legend.position = "None") 
 
 
 my_comparisons <- list(
@@ -503,26 +478,25 @@ my_comparisons <- list(
 )
 
 
-boxplot_data$score <- as.numeric(boxplot_data$score)
-boxplot_data$group <- factor(boxplot_data$group)
+boxplot_data2$score <- as.numeric(boxplot_data2$score)
+boxplot_data2$group <- factor(boxplot_data2$group)
 
-stat.table <- boxplot_data  %>%
+stat.table <- boxplot_data2  %>%
   wilcox_test(score ~ group,
               paired = FALSE,
               comparisons = my_comparisons) %>%
   add_xy_position(x = "group")
 
-stat.table <- stat.table[which(stat.table$p < 0.05),]
 
 # FOR CENTERED
-lowest_bracket <- max(boxplot_data$score)
+lowest_bracket <- max(boxplot_data2$score)
 stat.table$y.position <- seq(lowest_bracket, by= 0.8, length.out = nrow(stat.table)) #centered
 
 
-boxplotfinal2 <- ggplot(boxplot_data, aes(
+boxplot_centered <- ggplot(boxplot_data2, aes(
   x = factor(group),
   # x = factor(group),
-  y = as.numeric(boxplot_data[,1]))) +
+  y = as.numeric(boxplot_data2[,1]))) +
   
   theme_bw()+
   
@@ -555,13 +529,47 @@ boxplotfinal2 <- ggplot(boxplot_data, aes(
   ylab (label = "Mean of centered expression") +
   xlab (label = "Condition")
 
-ggsave(boxplotfinal2, filename = file.path(this.figures.dir, paste0(g,"_meancentered_validation_boxplot.png")), 
-       width = 2500, 
-       height = 2200, 
+listofboxplots_centered[[g]] <- boxplot_centered
+
+# ggsave(boxplotfinal2, filename = file.path(this.figures.dir, paste0(g,"_meancentered_validation_boxplot.png")), 
+#        width = 2500, 
+#        height = 2200, 
+#        units = "px" )
+
+
+} #close loop for number of genes
+
+boxplot_scaledcentered_panel <- annotate_figure(
+  ggarrange(
+  plotlist = list(listofboxplots_scaledcentered[["7_genes"]],
+                  listofboxplots_scaledcentered[["6_genes"]],
+                  listofboxplots_scaledcentered[["5_genes"]]),
+  ncol = 3),
+  bottom = text_grob(paste("Relative expression normalized to", hk),
+                     hjust = 1, x = 1, size = 16))
+
+ggsave(boxplot_scaledcentered_panel, filename = file.path(this.figures.dir, paste0("boxplot_scaledcentered_panel.png")),
+       width = 6000,
+       height = 2000,
+       units = "px" )
+
+boxplot_centered_panel <- annotate_figure(
+  ggarrange(
+    plotlist = list(listofboxplots_centered[["7_genes"]],
+                    listofboxplots_centered[["6_genes"]],
+                    listofboxplots_centered[["5_genes"]]),
+    ncol = 3),
+  bottom = text_grob(paste("Relative expression normalized to", hk), 
+                     hjust = 1, x = 1, size = 16)
+)
+
+ggsave(boxplot_centered_panel, filename = file.path(this.figures.dir, paste0("boxplot_centered_panel.png")),
+       width = 6000,
+       height = 2000,
        units = "px" )
 
 
-
+} #close loop for hk gene
 # ================================================================================== #
 # 8. PLOT BOXPLOTS FOR ROC/AUC curves =================================================
 # ================================================================================== #
