@@ -120,7 +120,7 @@ listoffiles2 <- lapply(X = listoffiles, function(list_item){
   
   #Calculate relative expression normalized to housekeeping genes
   alldata_genes_ct<- all_data[!(row.names(all_data) == "B2M" |row.names(all_data) == "GAPDH" ),]
-  alldata_genes_ct <- alldata_genes_ct[,-which(colnames(alldata_genes_ct) == "3201400")]
+  alldata_genes_ct <- alldata_genes_ct[,-which(colnames(alldata_genes_ct) == "3201400")] #No sample expression, only housekeeping
   
   ### 1) Using B2M as the housekeeping gene --------------------------------------------------------------------
   b2m_means <- all_data[row.names(all_data) == "B2M",]
@@ -163,7 +163,7 @@ which(is.na(as.matrix(delta_ct_b2m)), arr.ind = TRUE)
 
 
 #Make clinical file
-clinical <- data.frame(sample = colnames(delta_ct_data))
+clinical <- data.frame(sample = colnames(alldata_genes_ct))
 clinical$disease <- ifelse(clinical$sample %in% colnames(HC_T0),
                            "HC_T0",
                            "TB_T0")
@@ -178,7 +178,7 @@ row.names(clinical) <- clinical$sample
 qc.dir <- file.path(validation.dir, "qc")
 if(!exists(qc.dir)) dir.create(qc.dir)
 
-listof_delta_ct <- list(B2M = delta_ct_b2m, GAPDH = delta_ct_gapdh, avg_B2M_GAPDH = normdata_twohk )
+listof_delta_ct <- list(B2M = delta_ct_b2m, GAPDH = delta_ct_gapdh, avg_B2M_GAPDH = delta_ct_twohk )
 
 for (i in 1:length(listof_delta_ct)){
 #use delta_ct values, pca expects log-like scaling (ct values are exponential)
@@ -189,7 +189,7 @@ pca_res <- prcomp(t(as.data.frame(delta_ct_data[,-which(colnames(delta_ct_data) 
 colnames(delta_ct_data) %in% colnames(HC_T0)
 colnames(delta_ct_data) %in% colnames(TB_T0)
 
-clinical_pca <- cbind(pca_res$x, clinical[-which(row.names(clinical) == "3205033"),])
+clinical_pca <- cbind(pca_res$x, clinical[-which(row.names(clinical) == "3205033"),]) # has NA
 
 png(filename = file.path(qc.dir, paste0(names(listof_delta_ct)[[i]],"_pca5_plot.png")), width = 26, height = 23, units = "cm", res = 1200)
 
@@ -228,7 +228,7 @@ if(!exists(figures.dir)) dir.create(figures.dir)
 normdata <- listof_normdata[[i]]
 expression <- as.matrix(normdata)
 
-clinical <- data.frame(sample = colnames(delta_ct_data))
+clinical <- data.frame(sample = colnames(alldata_genes_ct))
 clinical$disease <- ifelse(clinical$sample %in% colnames(HC_T0),
                            "HC_T0",
                            "TB_T0")
@@ -302,6 +302,9 @@ if(number_of_genes == "5"){
   expr_set <- expr_set[-c(which(row.names(expr_set) == "S100A8" | row.names(expr_set) == "CD274")),]
 }
 
+if(number_of_genes == "4"){
+  expr_set <- expr_set[-c(which(row.names(expr_set) == "S100A8" | row.names(expr_set) == "CD274" | row.names(expr_set) == "IFITM1")),]
+}
 #transpose for scaling
 expr_set<-t(expr_set)
 
@@ -348,10 +351,26 @@ listofstandardised_scores <- list()
 listofstandardised_scores[["7_genes"]] <- scaledcentered_mean_func()
 listofstandardised_scores[["6_genes"]] <- scaledcentered_mean_func(number_of_genes = "6")
 listofstandardised_scores[["5_genes"]] <- scaledcentered_mean_func(number_of_genes = "5")
+listofstandardised_scores[["4_genes"]] <- scaledcentered_mean_func(number_of_genes = "4")
 
 listofresults[[i]] <- listofstandardised_scores
 
+mean_sigcenter_scores <- do.call(rbind,
+                              lapply(names(listofstandardised_scores), 
+                                     function(x){
+                                       data.frame(sig_scale = listofstandardised_scores[[x]][["scores"]]["sig_scale",],
+                                                  numberofgenes = x,
+                                                  sample = colnames(listofstandardised_scores[[x]][["scores"]])
+                                       )
+                                     }
+                              )
+) %>%  pivot_wider(names_from = "sample",
+              values_from = "sig_scale")
+write.csv(mean_sigcenter_scores, file.path(this.output.dir, paste0(i,"_mean_sigcenter_scores.csv" )))
+
 }
+
+
 
 # ================================================================================== #
 # 7. PLOT BOXPLOTS FOR VALIDATION =================================================
@@ -363,20 +382,19 @@ listofstandardised_scores <- listofresults[[hk]]
 listofboxplots_scaledcentered <- list()
 listofboxplots_centered <- list()
 
+this.output.dir <- file.path(validation.dir, hk)
+if(!exists(this.output.dir)) dir.create(this.output.dir)
+
+this.figures.dir <- file.path(this.output.dir, "figures")
+if(!exists(this.figures.dir)) dir.create(this.figures.dir)
+
 ## SCALED & CENTERED =================================================
-#loop over 5, 6 and 7genes
+#loop over 4, 5, 6 and 7genes
 for(g in names(listofstandardised_scores)){
   
-  this.output.dir <- file.path(validation.dir, hk)
-  if(!exists(this.output.dir)) dir.create(this.output.dir)
-  
-  figures.dir <- file.path(this.output.dir, "figures")
-  if(!exists(figures.dir)) dir.create(figures.dir)
-  
-  this.figures.dir <- file.path(figures.dir, g)
-  if(!exists(this.figures.dir)) dir.create(this.figures.dir)
-  
+
   score_data <- listofstandardised_scores[[g]][["scores"]]
+  
   gene_list <- listofstandardised_scores[[g]][["gene_list"]]
   
   boxplot_data <- as.data.frame(cbind(score = score_data["sig_scale",],
@@ -450,10 +468,10 @@ boxplot_scaledcentered <- ggplot(boxplot_data, aes(
   labs(title = paste0("HB_T0 vs TB_T0 expression"),
        caption = paste("Signature:", paste0(gene_list, collapse = ","))) +
   ylab (label = "Mean of scaled & centered expression") +
-  xlab (label = "Condition")
+  xlab (label = "Condition") 
 
-listofboxplots_scaledcentered[[g]] <- boxplot_scaledcentered
-  
+listofboxplots_scaledcentered[[g]] <- ggplotGrob(boxplot_scaledcentered) #ggGrob freezes the image in place, otherwise the pvalue brackets move when put into the list
+
 # ggsave(boxplotfinal2, filename = file.path(boxplot.dir, paste0(g,"_meanscaledcentered_validation__boxplot.png")), 
 #        width = 2500, 
 #        height = 2200, 
@@ -529,12 +547,12 @@ boxplot_centered <- ggplot(boxplot_data2, aes(
   ylab (label = "Mean of centered expression") +
   xlab (label = "Condition")
 
-listofboxplots_centered[[g]] <- boxplot_centered
+listofboxplots_centered[[g]] <- ggplotGrob(boxplot_centered)
 
-# ggsave(boxplotfinal2, filename = file.path(this.figures.dir, paste0(g,"_meancentered_validation_boxplot.png")), 
-#        width = 2500, 
-#        height = 2200, 
-#        units = "px" )
+ggsave(boxplotfinal2, filename = file.path(this.figures.dir, paste0(g,"_meancentered_validation_boxplot.png")),
+       width = 2500,
+       height = 2200,
+       units = "px" )
 
 
 } #close loop for number of genes
@@ -543,13 +561,14 @@ boxplot_scaledcentered_panel <- annotate_figure(
   ggarrange(
   plotlist = list(listofboxplots_scaledcentered[["7_genes"]],
                   listofboxplots_scaledcentered[["6_genes"]],
-                  listofboxplots_scaledcentered[["5_genes"]]),
-  ncol = 3),
+                  listofboxplots_scaledcentered[["5_genes"]],
+                  listofboxplots_scaledcentered[["4_genes"]]),
+  ncol = 4),
   bottom = text_grob(paste("Relative expression normalized to", hk),
                      hjust = 1, x = 1, size = 16))
 
 ggsave(boxplot_scaledcentered_panel, filename = file.path(this.figures.dir, paste0("boxplot_scaledcentered_panel.png")),
-       width = 6000,
+       width = 8000,
        height = 2000,
        units = "px" )
 
@@ -557,28 +576,61 @@ boxplot_centered_panel <- annotate_figure(
   ggarrange(
     plotlist = list(listofboxplots_centered[["7_genes"]],
                     listofboxplots_centered[["6_genes"]],
-                    listofboxplots_centered[["5_genes"]]),
-    ncol = 3),
+                    listofboxplots_centered[["5_genes"]],
+                    listofboxplots_centered[["4_genes"]]),
+    ncol = 4),
   bottom = text_grob(paste("Relative expression normalized to", hk), 
                      hjust = 1, x = 1, size = 16)
 )
 
 ggsave(boxplot_centered_panel, filename = file.path(this.figures.dir, paste0("boxplot_centered_panel.png")),
-       width = 6000,
+       width = 8000,
        height = 2000,
        units = "px" )
 
 
 } #close loop for hk gene
+
+
+
 # ================================================================================== #
-# 8. PLOT BOXPLOTS FOR ROC/AUC curves =================================================
+# 8. PLOT ROC/AUC curves =================================================
 # ================================================================================== #
+hk = "B2M"
+g = "4_genes"
+for (hk in names(listofresults)){ 
 
-# GSVA gives a score per sample - enrichment score of how enriched the gene set is in that sample (how up or down the gene set is in the sample relative to other genes)
-# Since we can't do GSVA here (our new data has the same 7 genes), we can take our mean scaled and centered data (we already calculated the mean expression of the new 7 genes per sample, scaled and centered)
-# Mean of expression (scaled & centered) = the values are comparable bc they reflect how high or low expression of the genes are in that sample compared to other samples
+  listofstandardised_scores <- listofresults[[hk]]
+  listofboxplots_scaledcentered <- list()
+  listofboxplots_centered <- list()
+
+  
+  this.output.dir <- file.path(validation.dir, hk)
+  if(!exists(this.output.dir)) dir.create(this.output.dir)
+  
+  this.figures.dir <- file.path(this.output.dir, "figures")
+  if(!exists(this.figures.dir)) dir.create(this.figures.dir)
+  
+  res_table <- data.frame() 
+  roc_objects <- list()
+  
+  res_table2 <- data.frame() 
+  roc_objects2 <- list()
+  
+  for(g in names(listofstandardised_scores)){ 
 
 
+  score_data <- listofstandardised_scores[[g]][["scores"]]
+  gene_list <- paste(
+    "7_genes:", paste0(listofstandardised_scores[["7_genes"]][["gene_list"]], collapse = ","), "\n",
+    "6_genes:", paste0(listofstandardised_scores[["6_genes"]][["gene_list"]], collapse = ","), "\n",
+    "5_genes:", paste0(listofstandardised_scores[["5_genes"]][["gene_list"]], collapse = ","), "\n",
+    "4_genes:", paste0(listofstandardised_scores[["4_genes"]][["gene_list"]], collapse = ","), "\n"
+    
+  )
+
+  
+  
 mean_standardised_scores <- as.data.frame(t(as.matrix(score_data)))
 mean_standardised_scores$group <- clinical[colnames(score_data), "group"]
 
@@ -586,6 +638,7 @@ mean_standardised_scores$group <- factor(mean_standardised_scores$group, levels 
 
 
 #scaled+centered
+normtype = "sig_scale"
 glm_model <- glm(group ~ sig_scale, data = mean_standardised_scores, family = binomial)
 
 # Predict probabilities
@@ -593,48 +646,82 @@ test_probs <- predict(glm_model, type = "response")
 
 # Compute ROC and AUC
 roc_obj <- roc(mean_standardised_scores$group, test_probs)
-plot(roc_obj, print.auc = TRUE)
-auc(roc_obj)
+
 auc_ci <- ci.auc(roc_obj)
 
+optimal_threshold_coords <- coords(roc_obj, "best", ret = c("threshold", "sensitivity", "specificity", best.method = "youden"))
 
-roc_data <- data.frame(
-  TPR = rev(roc_obj$sensitivities),  # True Positive Rate
-  FPR = rev(1 - roc_obj$specificities),  # False Positive Rate
-  # Comparison = comparison,
-  auc = rev(roc_obj$auc),
-  ci = paste0(round(as.numeric(auc_ci[1]),2), "-", round(as.numeric(auc_ci[3]),2)))
+if(nrow(optimal_threshold_coords) > 1) {
+  optimal_threshold_coords <- optimal_threshold_coords[1,] # some output have 2 equally optimal thresholds = same AUC. just keep  first one as results are the same
+}
 
-roc_data$legend <- paste0("HC_T0 vs TB_T0: \n AUC = ", 
+res_current <-cbind(
+  numberofgenes = g,
+  auc = auc(roc_obj),
+  ci = paste0(round(as.numeric(auc_ci[1]),2), "-", round(as.numeric(auc_ci[3]),2)),
+  sensitivity = optimal_threshold_coords$sensitivity, 
+  specificity = optimal_threshold_coords$specificity)
+
+
+res_table <- rbind(res_table, res_current)
+
+roc_objects[[g]] <- roc_obj
+
+
+#do.call to execute a function, using a list of arguments (here we are saying, apply the function to all roc_objects names, then rbind the results together )
+roc_data <- do.call(rbind, 
+                    lapply(names(roc_objects), function(numberofgenes) {
+                      data.frame(
+                        TPR = rev(roc_objects[[numberofgenes]]$sensitivities),  # True Positive Rate
+                        FPR = rev(1 - roc_objects[[numberofgenes]]$specificities),  # False Positive Rat
+                        numberofgenes = numberofgenes,
+                        auc = rev(roc_objects[[numberofgenes]]$auc))
+                      }) #close lapply
+                    ) #close do.call
+
+
+roc_data$numberofgenes <- factor(roc_data$numberofgenes)
+
+roc_data$ci <- res_table[match(roc_data$numberofgenes, res_table$numberofgenes), "ci"]
+
+roc_data$legend <- paste0(roc_data$numberofgenes,": \n AUC = ", 
                           round(roc_data$auc, 2), " (", roc_data$ci, ")")
+
+
+write.csv(res_table, file.path(this.output.dir, paste0(hk,"_sig_scale_res_table.csv")))
+
 
 disease_roc <- ggplot(roc_data, aes(x = FPR, y = TPR, color = legend)) +
   geom_line(size = 1.2) +
   theme_bw() +
   geom_abline(slope = 1, intercept = 0, linetype = "dashed", color = "black")  +
-  guides(colour = guide_legend(nrow = 1)) +
+  guides(colour = guide_legend(nrow = 2)) +
   theme(legend.position = "bottom",
         axis.title = element_text(size = 24),
         axis.text = element_text(size = 24),
         legend.text = element_text(size = 16),
-        title = element_text(size = 20)) +
+        title = element_text(size = 20),
+        plot.caption = element_text(hjust = 0)) +
   labs(
     title = "ROC - HC_T0 vs TB_T0",
     x = "FPR (1 - Specificity)",
     y = "TPR (Sensitivity)",
     color = "Comparison",
-    caption = paste("Signature:", paste0(gene_list, collapse = ","))) 
+    caption = paste("Signatures: \n", gene_list, collapse = ","))
   
-ggsave(disease_roc, filename = file.path(this.figures.dir, paste0(g,"_meanscaledcentered_roc.png")), 
-       width = 2500, 
-       height = 3000, 
+ggsave(disease_roc, filename = file.path(this.figures.dir, paste0(hk, "_", normtype, "_roc.png")),
+       width = 2500,
+       height = 3000,
        units = "px" )
 
 
 
 
 
+
+
 #centered
+normtype = "sig_center"
 glm_model <- glm(group ~ sig_center, data = mean_standardised_scores, family = binomial)
 
 # Predict probabilities
@@ -642,42 +729,83 @@ test_probs <- predict(glm_model, type = "response")
 
 # Compute ROC and AUC
 roc_obj <- roc(mean_standardised_scores$group, test_probs)
-plot(roc_obj, print.auc = TRUE)
-auc(roc_obj)
+
 auc_ci <- ci.auc(roc_obj)
 
+optimal_threshold_coords <- coords(roc_obj, "best", ret = c("threshold", "sensitivity", "specificity", best.method = "youden"))
+if(nrow(optimal_threshold_coords) > 1) {
+  optimal_threshold_coords <- optimal_threshold_coords[1,] # some output have 2 equally optimal thresholds = same AUC. just keep  first one as results are the same
+}
 
-roc_data <- data.frame(
-  TPR = rev(roc_obj$sensitivities),  # True Positive Rate
-  FPR = rev(1 - roc_obj$specificities),  # False Positive Rate
-  # Comparison = comparison,
-  auc = rev(roc_obj$auc),
-  ci = paste0(round(as.numeric(auc_ci[1]),2), "-", round(as.numeric(auc_ci[3]),2)))
+res_current <-cbind(
+  numberofgenes = g,
+  auc = auc(roc_obj),
+  ci = paste0(round(as.numeric(auc_ci[1]),2), "-", round(as.numeric(auc_ci[3]),2)),
+  sensitivity = optimal_threshold_coords$sensitivity, 
+  specificity = optimal_threshold_coords$specificity)
 
-roc_data$legend <- paste0("HC_T0 vs TB_T0: \n AUC = ", 
+
+res_table2 <- rbind(res_table2, res_current)
+
+roc_objects2[[g]] <- roc_obj
+
+
+#do.call to execute a function, using a list of arguments (here we are saying, apply the function to all roc_objects names, then rbind the results together )
+roc_data <- do.call(rbind, 
+                    lapply(names(roc_objects2), function(numberofgenes) {
+                      data.frame(
+                        TPR = rev(roc_objects2[[numberofgenes]]$sensitivities),  # True Positive Rate
+                        FPR = rev(1 - roc_objects2[[numberofgenes]]$specificities),  # False Positive Rat
+                        numberofgenes = numberofgenes,
+                        auc = rev(roc_objects2[[numberofgenes]]$auc))
+                    }) #close lapply
+) #close do.call
+
+
+roc_data$numberofgenes <- factor(roc_data$numberofgenes)
+
+roc_data$ci <- res_table2[match(roc_data$numberofgenes, res_table2$numberofgenes), "ci"]
+
+roc_data$legend <- paste0(roc_data$numberofgenes,": \n AUC = ", 
                           round(roc_data$auc, 2), " (", roc_data$ci, ")")
+
+write.csv(res_table2, file.path(this.output.dir, paste0(hk,"_sig_center_res_table.csv")))
+
+
 
 disease_roc <- ggplot(roc_data, aes(x = FPR, y = TPR, color = legend)) +
   geom_line(size = 1.2) +
   theme_bw() +
   geom_abline(slope = 1, intercept = 0, linetype = "dashed", color = "black")  +
-  guides(colour = guide_legend(nrow = 1)) +
+  guides(colour = guide_legend(nrow = 2)) +
   theme(legend.position = "bottom",
         axis.title = element_text(size = 24),
         axis.text = element_text(size = 24),
         legend.text = element_text(size = 16),
-        title = element_text(size = 20)) +
+        title = element_text(size = 20),
+        plot.caption = element_text(hjust = 0)) +
   labs(
     title = "ROC - HC_T0 vs TB_T0",
     x = "FPR (1 - Specificity)",
     y = "TPR (Sensitivity)",
     color = "Comparison",
-    caption = paste("Signature:", paste0(gene_list, collapse = ",")))
-  
-ggsave(disease_roc, filename = file.path(this.figures.dir, paste0(g,"_meancentered_roc.png")), 
-       width = 2500, 
-       height = 3000, 
+    caption = paste("Signatures: \n", gene_list, collapse = ","))
+
+ggsave(disease_roc, filename = file.path(this.figures.dir, paste0(hk, "_", normtype, "_roc.png")),
+       width = 2500,
+       height = 3000,
        units = "px" )
 
-} #close gene loop
+
+  } #close number of genes loop
+  
+} 
 #scaled + centered is better
+
+
+
+
+
+
+
+
