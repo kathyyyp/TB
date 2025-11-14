@@ -38,8 +38,6 @@ output.dir <- file.path(my_directory,"output")
 validation.dir <- file.path(output.dir,"validation")
 if(!exists(validation.dir)) dir.create(validation.dir)
 
-results.dir <- file.path(output.dir, "results")
-signature.dir <- file.path(results.dir, "signature")
 
 
 # ================================================================================== #
