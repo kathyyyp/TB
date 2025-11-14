@@ -365,9 +365,9 @@ mean_sigcenter_scores <- do.call(rbind,
 ) %>%  pivot_wider(names_from = "sample",
               values_from = "sig_scale")
 write.csv(mean_sigcenter_scores, file.path(this.output.dir, paste0(i,"_mean_sigcenter_scores.csv" )))
-
 }
 
+saveRDS(listofresults, file.path(validation.dir, "listofresults.RDS"))
 
 
 # ================================================================================== #
@@ -594,8 +594,7 @@ ggsave(boxplot_centered_panel, filename = file.path(this.figures.dir, paste0("bo
 # ================================================================================== #
 # 8. PLOT ROC/AUC curves =================================================
 # ================================================================================== #
-hk = "B2M"
-g = "4_genes"
+
 for (hk in names(listofresults)){ 
 
   listofstandardised_scores <- listofresults[[hk]]
@@ -610,9 +609,11 @@ for (hk in names(listofresults)){
   if(!exists(this.figures.dir)) dir.create(this.figures.dir)
   
   res_table <- data.frame() 
+  forestplot_res_table <- data.frame()
   roc_objects <- list()
   
   res_table2 <- data.frame() 
+  forestplot_res_table2 <- data.frame()
   roc_objects2 <- list()
   
   for(g in names(listofstandardised_scores)){ 
@@ -645,13 +646,21 @@ test_probs <- predict(glm_model, type = "response")
 # Compute ROC and AUC
 roc_obj <- roc(mean_standardised_scores$group, test_probs)
 
-auc_ci <- ci.auc(roc_obj)
+auc_ci <- ci.auc(roc_obj) # # 2.5% and 97.5% 
 
 optimal_threshold_coords <- coords(roc_obj, "best", ret = c("threshold", "sensitivity", "specificity", best.method = "youden"))
 
 if(nrow(optimal_threshold_coords) > 1) {
   optimal_threshold_coords <- optimal_threshold_coords[1,] # some output have 2 equally optimal thresholds = same AUC. just keep  first one as results are the same
 }
+
+
+# Sensitivity confidence interval
+ci_sens <- ci.se(roc_obj, specificities =  as.numeric(optimal_threshold_coords["specificity"]))
+
+# Specificity confidence interval
+ci_spec <- ci.sp(roc_obj, sensitivities =  as.numeric(optimal_threshold_coords["sensitivity"]))
+
 
 res_current <-cbind(
   numberofgenes = g,
@@ -662,6 +671,25 @@ res_current <-cbind(
 
 
 res_table <- rbind(res_table, res_current)
+write.csv(res_table, file.path(this.output.dir, paste0(hk,"_sig_scale_res_table.csv")))
+
+
+forestplot_res_table <- rbind(forestplot_res_table, 
+                              cbind(numberofgenes = g,
+                                    auc = auc(roc_obj),
+                                    auc_ci_low = as.numeric(auc_ci[1]),
+                                    auc_ci_high = as.numeric(auc_ci[3]),
+                                    
+                                    sensitivity = optimal_threshold_coords$sensitivity, 
+                                    sensitivity_ci_low = ci_sens[, "2.5%"],
+                                    sensitivity_ci_high = ci_sens[, "97.5%"],
+                                    
+                                    specificity = optimal_threshold_coords$specificity,
+                                    specificity_ci_low = ci_spec[, "2.5%"],
+                                    specificity_ci_high = ci_spec[, "97.5%"])
+)
+
+write.csv(forestplot_res_table, file.path(this.output.dir, paste0(hk,"_sig_scale_forestplot_res_table.csv")))
 
 roc_objects[[g]] <- roc_obj
 
@@ -686,7 +714,6 @@ roc_data$legend <- paste0(roc_data$numberofgenes,": \n AUC = ",
                           round(roc_data$auc, 2), " (", roc_data$ci, ")")
 
 
-write.csv(res_table, file.path(this.output.dir, paste0(hk,"_sig_scale_res_table.csv")))
 
 
 disease_roc <- ggplot(roc_data, aes(x = FPR, y = TPR, color = legend)) +
@@ -735,6 +762,12 @@ if(nrow(optimal_threshold_coords) > 1) {
   optimal_threshold_coords <- optimal_threshold_coords[1,] # some output have 2 equally optimal thresholds = same AUC. just keep  first one as results are the same
 }
 
+# Sensitivity confidence interval
+ci_sens <- ci.se(roc_obj, specificities = as.numeric(optimal_threshold_coords["specificity"]))
+
+# Specificity confidence interval
+ci_spec <- ci.sp(roc_obj, sensitivities = as.numeric(optimal_threshold_coords["sensitivity"]))
+
 res_current <-cbind(
   numberofgenes = g,
   auc = auc(roc_obj),
@@ -744,6 +777,25 @@ res_current <-cbind(
 
 
 res_table2 <- rbind(res_table2, res_current)
+write.csv(res_table2, file.path(this.output.dir, paste0(hk,"_sig_center_res_table.csv")))
+
+
+forestplot_res_table2 <- rbind(forestplot_res_table2, 
+                              cbind(numberofgenes = g,
+                                    auc = auc(roc_obj),
+                                    auc_ci_low = as.numeric(auc_ci[1]),
+                                    auc_ci_high = as.numeric(auc_ci[3]),
+                                    
+                                    sensitivity = optimal_threshold_coords$sensitivity, 
+                                    sensitivity_ci_low = ci_sens[, "2.5%"],
+                                    sensitivity_ci_high = ci_sens[, "97.5%"],
+                                    
+                                    specificity = optimal_threshold_coords$specificity,
+                                    specificity_ci_low = ci_spec[, "2.5%"],
+                                    specificity_ci_high = ci_spec[, "97.5%"])
+)
+
+write.csv(forestplot_res_table2, file.path(this.output.dir, paste0(hk,"_sig_center_forestplot_res_table.csv")))
 
 roc_objects2[[g]] <- roc_obj
 
@@ -767,7 +819,6 @@ roc_data$ci <- res_table2[match(roc_data$numberofgenes, res_table2$numberofgenes
 roc_data$legend <- paste0(roc_data$numberofgenes,": \n AUC = ", 
                           round(roc_data$auc, 2), " (", roc_data$ci, ")")
 
-write.csv(res_table2, file.path(this.output.dir, paste0(hk,"_sig_center_res_table.csv")))
 
 
 
@@ -802,8 +853,52 @@ ggsave(disease_roc, filename = file.path(this.figures.dir, paste0(hk, "_", normt
 
 
 
+### Forest plots ####
+library(tidyverse)
+
+## Prep table
+hk <- "B2M"
+res_table <- read.csv(file.path(validation.dir, hk, paste0(hk,"_sig_scale_forestplot_res_table.csv")), row.names = 1)
+
+auc_plot <- res_table %>% 
+  ggplot(aes(y = numberofgenes)) + 
+  theme_bw() +
+  geom_point(aes(x=auc), shape=15, size=3) +
+  geom_linerange(aes(xmin=auc_ci_low, xmax=auc_ci_high)) +
+  ylab(NULL)+
+  xlab("AUC")+
+coord_cartesian( xlim=c(0.1, 1))
+
+sens_plot <- res_table %>% 
+  ggplot(aes(y = numberofgenes)) + 
+  theme_bw() +
+  geom_point(aes(x=sensitivity), shape=15, size=3) +
+  geom_linerange(aes(xmin=sensitivity_ci_low, xmax=sensitivity_ci_high)) +
+  ylab(NULL)+
+  xlab("Specificity")+
+coord_cartesian( xlim=c(0.1, 1))
+
+spec_plot <- res_table %>% 
+  ggplot(aes(y = numberofgenes)) + 
+  theme_bw() +
+  geom_point(aes(x=specificity), shape=15, size=3) +
+  geom_linerange(aes(xmin=specificity_ci_low, xmax=specificity_ci_high)) +
+  ylab(NULL)+
+  xlab("Sensitivity")+
+  coord_cartesian( xlim=c(0.1, 1))
+  
+
+panel_forest <- ggarrange(plotlist = list(auc_plot, sens_plot, spec_plot ),
+          ncol = 1,
+          nrow = 3)
+
+panel_forest <- annotate_figure(
+  panel_forest,
+  bottom = text_grob(paste0("Normalised to ",hk,"\nSenstivity and specificity calculated at Youden threshold \n",
+                            gene_list), 
+                      size = 8, hjust = 0, x = 0)
+)
 
 
-
-
-
+ggsave(panel_forest, filename= file.path(validation.dir, hk, "figures", "panel_forestplot.png"),
+       width = 10, height = 15, units = "cm",   bg = "white"  )
