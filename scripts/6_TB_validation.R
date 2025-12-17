@@ -4,9 +4,9 @@
 # ================================================================================== #
 
 # #Mac
-# my_directory <- "/Users/kathyphung/Library/CloudStorage/OneDrive-UTS/Documents/RBMB"
-# setwd(paste0(my_directory,"/TB"))
-# .libPaths("/Volumes/One Touch/rlibrary")
+my_directory <- "/Users/kathyphung/Library/CloudStorage/OneDrive-UTS/Documents/RBMB"
+setwd(paste0(my_directory,"/TB"))
+.libPaths("/Volumes/One Touch/rlibrary")
 
 # Windows
 my_directory <- "C:/Users/165861_admin/OneDrive - UTS/Documents/RBMB/TB"
@@ -62,7 +62,7 @@ listoffiles <- list(HC_T0 = HC_T0_ct, TB_T0 = TB_T0_ct)
 
 odd_indexes <- seq(from = 1, to= 17,by = 2)
 
-
+list_item = listoffiles[[2]]
 listoffiles2 <- lapply(X = listoffiles, function(list_item){
   
   new_list <- data.frame() #make new list
@@ -858,7 +858,7 @@ library(tidyverse)
 
 ## Prep table
 hk <- "B2M"
-res_table <- read.csv(file.path(validation.dir, hk, paste0(hk,"_sig_scale_forestplot_res_table.csv")), row.names = 1)
+res_table <- read.csv(file.path(validation.dir, "only_HCT0_TBT0", hk, paste0(hk,"_sig_scale_forestplot_res_table.csv")), row.names = 1)
 
 auc_plot <- res_table %>% 
   ggplot(aes(y = numberofgenes)) + 
