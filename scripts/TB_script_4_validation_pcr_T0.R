@@ -1,4 +1,4 @@
-#This script ONLY contains comparison of HC_T0 vs TB_T0 unpaired data
+#This script ONLY contains comparison of HC_T0 vs TB_T0 unpaired data (PCR Validation cohort)
 
 
 # Batch1 = B2M is more stable
@@ -7,15 +7,11 @@
 # A. SCRIPT SET UP =================================================================
 # ================================================================================== #
 
-# #Mac
-my_directory <- "/Users/kathyphung/Library/CloudStorage/OneDrive-UTS/Documents/RBMB"
-setwd(paste0(my_directory,"/TB"))
-.libPaths("/Volumes/One Touch/rlibrary")
-
-# Windows
-my_directory <- "C:/Users/165861_admin/OneDrive - UTS/Documents/RBMB/TB"
-setwd(file.path(my_directory))
-.libPaths("C:/Users/165861_admin/OneDrive - UTS/rlibrary")
+# Mac
+my_directory <- "/Volumes/One Touch/RBMB"
+main.dir <- file.path(my_directory, "TB")
+setwd(file.path(main.dir))
+.libPaths("/Volumes/One Touch/RBMB/rlibrary")
 
 
 library(pROC)
@@ -30,12 +26,10 @@ library(readxl)
 # ================================================================================== #
 # B. SET UP DIRECTORY & OUTPUT PATHS ===============================================
 # ================================================================================== #
-main.dir <- my_directory
-data.dir <- file.path(my_directory, "data")
-processed.dir <- file.path(my_directory, "data", "processed")
-output.dir <- file.path(my_directory,"output_v2")
-validation.dir <- file.path(output.dir,"validation_cohort_pcr")
-# validation.dir <- file.path(output.dir,"validation", "unpaired_HCT0_TBT0", "rm_3200865")
+data.dir <- file.path(main.dir, "data")
+processed.dir <- file.path(data.dir, "processed")
+output.dir <- file.path(main.dir, "output_v2")
+validation.dir <- file.path(output.dir,"validation_cohort_pcr", "unpaired_HC_T0_vs_TB_T0")
 if(!exists(validation.dir)) dir.create(validation.dir)
 
 
@@ -43,7 +37,6 @@ if(!exists(validation.dir)) dir.create(validation.dir)
 # ================================================================================== #
 # 1. LOAD IN DATA ==================================================================
 # ================================================================================== #
-setwd(file.path(data.dir,"raw"))
 
 #clinical
 HC_T0_meta <- read_excel(file.path(data.dir, "raw", "RNA signature validation study pt infos 16122025 Kathy.xlsx"), sheet = "HCT0", col_names = TRUE) 
@@ -51,7 +44,6 @@ TB_T0_meta <- read_excel(file.path(data.dir, "raw", "RNA signature validation st
 
 HC_T0_ct <- read_excel(file.path(data.dir, "raw", "Biomarkers Raw Data for Analyse with new GAPDH 22012026.xlsx"), sheet = "HCT0", skip = 1, col_names = TRUE)
 TB_T0_ct <- read_excel(file.path(data.dir, "raw", "Biomarkers Raw Data for Analyse with new GAPDH 22012026.xlsx"), sheet = "TBT0", skip = 1, col_names = TRUE) 
-setwd(file.path(main.dir))
 
 # ================================================================================== #
 # 2. CLEAN UP EXPRESSION DATA ======================================================
@@ -306,14 +298,14 @@ for (hk in names(listof_normdata)){
                          axis.text.x = element_blank(),      
                          axis.ticks.x = element_blank()) 
   
-  plot <- ggplot(expr_long, aes(x = disease, y = expression, color=disease)) +
+  plot <- ggplot(expr_long, aes(x = disease, y = expression, group=group)) +
     geom_boxplot(outlier.shape=NA, alpha=0.2) +
-    geom_jitter(width=0.2, size=1) +
+    geom_jitter(width=0.2, size=1, aes(color = group)) +
     theme_bw() +
     boxplot_theme +
     stat_summary(fun.y = mean, fill = "red",
                  geom = "point", shape = 21, size =2,
-                 show.legend = TRUE) +
+                 show.legend = FALSE) +
     stat_compare_means(method = "wilcox.test", 
                        size = 8,
                        comparisons = list(c("HC_T0", "TB_T0")),
@@ -360,9 +352,9 @@ for (hk in names(listof_normdata)){
     #   expr_set <- expr_set[-c(which(row.names(expr_set) == "S100A8" | row.names(expr_set) == "CD274")),]
     # }
     # 
-    # if(number_of_genes == "4"){
-    #   expr_set <- expr_set[-c(which(row.names(expr_set) == "S100A8" | row.names(expr_set) == "CD274" | row.names(expr_set) == "IFITM1")),]
-    # }
+    if(number_of_genes == "4"){
+      expr_set <- expr_set[-c(which(row.names(expr_set) == "S100A8" | row.names(expr_set) == "CD274" | row.names(expr_set) == "IFITM1")),]
+    }
     #transpose for scaling
     expr_set<-t(expr_set)
     
@@ -401,7 +393,7 @@ for (hk in names(listof_normdata)){
   listofstandardised_scores[["7_genes"]] <- scaledcentered_mean_func()
   # listofstandardised_scores[["6_genes"]] <- scaledcentered_mean_func(number_of_genes = "6")
   # listofstandardised_scores[["5_genes"]] <- scaledcentered_mean_func(number_of_genes = "5")
-  # listofstandardised_scores[["4_genes"]] <- scaledcentered_mean_func(number_of_genes = "4")
+  listofstandardised_scores[["4_genes"]] <- scaledcentered_mean_func(number_of_genes = "4")
   
   listofresults[[hk]] <- listofstandardised_scores
   
@@ -440,9 +432,8 @@ for (hk in names(listofresults)){
   
   ## SCALED & CENTERED =================================================
   #loop over 4, 5, 6 and 7genes
-  # for(g in names(listofstandardised_scores)){
+  for(g in names(listofstandardised_scores)){
   
-  g = "7_genes"
   score_data <- listofstandardised_scores[[g]][["scores"]]
   
   gene_list <- listofstandardised_scores[[g]][["gene_list"]]
@@ -485,13 +476,14 @@ for (hk in names(listofresults)){
   boxplot_scaledcentered <- ggplot(boxplot_data, aes(
     x = factor(group),
     # x = factor(group),
-    y = as.numeric(boxplot_data[,1]))) +
+    y = as.numeric(boxplot_data[,1]),
+    group = group)) +
     
     theme_bw()+
     
     gsva_theme +
     
-    geom_boxplot(aes(color = group),position = position_dodge(1)) +
+    geom_boxplot(position = position_dodge(1)) +
     
     # Unpaired boxplot
     geom_jitter(aes(color = group),
@@ -510,16 +502,17 @@ for (hk in names(listofresults)){
     
     stat_summary(fun.y = mean, fill = "red",
                  geom = "point", shape = 21, size =4,
-                 show.legend = TRUE) +
+                 show.legend = FALSE) +
     
     
     labs(title = paste0("HB_T0 vs TB_T0 expression"),
-         caption = paste("Signature:", paste0(gene_list, collapse = ","))) +
+         caption = paste("Signature:", paste0(gene_list, collapse = ","), "\n",
+                         "Relative expression normalized to", hk)) +
     ylab (label = "Mean of scaled & centered expression") +
     xlab (label = "Condition") 
   
   
-  ggsave(boxplot_scaledcentered, filename = file.path(this.figures.dir, paste0(hk,"_boxplot_mean_ztransformed.png")),
+  ggsave(boxplot_scaledcentered, filename = file.path(this.figures.dir, paste0(hk,"_", g,"_boxplot_mean_ztransformed.png")),
          width = 2000,
          height = 2200,
          units = "px" )
@@ -528,7 +521,7 @@ for (hk in names(listofresults)){
   # listofboxplots_scaledcentered[[g]] <- ggplotGrob(boxplot_scaledcentered) #ggGrob freezes the image in place, otherwise the pvalue brackets move when put into the list
   
   
-  # } #close loop for number of genes
+  } #close loop for number of genes
   # 
   # boxplot_scaledcentered_panel <- annotate_figure(
   #   ggarrange(
@@ -571,21 +564,19 @@ for (hk in names(listofresults)){
   forestplot_res_table <- data.frame()
   roc_objects <- list()
   
-  
-  # for(g in names(listofstandardised_scores)){ 
-  
-  g = "7_genes"
+  for(g in names(listofstandardised_scores)){
   
   score_data <- listofstandardised_scores[[g]][["scores"]]
   gene_list <- paste(
-    "7_genes:", paste0(listofstandardised_scores[["7_genes"]][["gene_list"]], collapse = ","), "\n" #,
+    "7_genes:", paste0(listofstandardised_scores[["7_genes"]][["gene_list"]], collapse = ","), "\n" ,
     # "6_genes:", paste0(listofstandardised_scores[["6_genes"]][["gene_list"]], collapse = ","), "\n",
     # "5_genes:", paste0(listofstandardised_scores[["5_genes"]][["gene_list"]], collapse = ","), "\n",
-    # "4_genes:", paste0(listofstandardised_scores[["4_genes"]][["gene_list"]], collapse = ","), "\n"
+    "4_genes:", paste0(listofstandardised_scores[["4_genes"]][["gene_list"]], collapse = ","), "\n"
     
   )
   
-  
+
+
   
   mean_standardised_scores <- as.data.frame(t(as.matrix(score_data)))
   mean_standardised_scores$group <- clinical[colnames(score_data), "group"]
@@ -612,7 +603,6 @@ for (hk in names(listofresults)){
   
   
   # Sensitivity confidence interval
-  wrong way atound!!!!!!
   ci_sens <- ci.se(roc_obj, specificities =  as.numeric(optimal_threshold_coords["specificity"])) 
   
   # Specificity confidence interval
@@ -628,7 +618,6 @@ for (hk in names(listofresults)){
   
   
   res_table <- rbind(res_table, res_current)
-  write.csv(res_table, file.path(this.output.dir, paste0(hk,"_mean_ztransformed_scores_res_table.csv")))
   
   
   forestplot_res_table <- rbind(forestplot_res_table, 
@@ -646,7 +635,6 @@ for (hk in names(listofresults)){
                                       specificity_ci_high = ci_spec[, "97.5%"])
   )
   
-  write.csv(forestplot_res_table, file.path(this.output.dir, paste0(hk,"_mean_ztransformed_scores_forestplot_res_table.csv")))
   
   roc_objects[[g]] <- roc_obj
   
@@ -668,20 +656,34 @@ for (hk in names(listofresults)){
   roc_data$ci <- res_table[match(roc_data$numberofgenes, res_table$numberofgenes), "ci"]
   
   #When we want to show 4,5,6 and 7 gene signature
-  # roc_data$legend <- paste0(roc_data$numberofgenes,": \n AUC = ", 
-  #                           round(roc_data$auc, 2), " (", roc_data$ci, ")")
-  
-  # When we want to show only 7 gene signature
-  roc_data$legend <- paste0("HC_T0 vs TB_T0",": \n AUC = ",
+  roc_data$legend <- paste0(roc_data$numberofgenes,": \n AUC = ",
                             round(roc_data$auc, 2), " (", roc_data$ci, ")")
   
+  # When we want to show only 7 gene signature
+  # roc_data$legend <- paste0("HC_T0 vs TB_T0",": \n AUC = ",
+  #                           round(roc_data$auc, 2), " (", roc_data$ci, ")")
+  # 
   
   
+#reorder signature so colours are how i want
+roc_data$numberofgenes <- factor(roc_data$numberofgenes, levels = names(roc_objects))
+
+#reorder legend to match
+roc_data <- roc_data %>%
+  mutate(
+    #get first word of signature and remove the :
+    legend_first_word = str_remove(word(legend, 1),":"),
+    # rorder legend factor based on signature factor order
+    legend = factor(legend, levels = legend[match(levels(numberofgenes), legend_first_word)])
+  )
+
+
   disease_roc <- ggplot(roc_data, aes(x = FPR, y = TPR, color = legend)) +
     geom_line(size = 1.2) +
     theme_bw() +
     geom_abline(slope = 1, intercept = 0, linetype = "dashed", color = "black")  +
     guides(colour = guide_legend(nrow = 2)) +
+    scale_color_manual(values = c("#009E73", "#CC79A7")) +
     theme(legend.position = "bottom",
           legend.title = element_blank(),
           axis.title = element_text(size = 24),
@@ -693,56 +695,65 @@ for (hk in names(listofresults)){
       x = "FPR (1 - Specificity)",
       y = "TPR (Sensitivity)",
       color = "Comparison",
-      caption = paste(g, "Signature:", paste0(listofstandardised_scores[[g]][["gene_list"]], collapse = ",")))
-  
+      # caption = paste(g, "Signature:", paste0(listofstandardised_scores[[g]][["gene_list"]], collapse = ",")))
+        caption = gene_list)
+
   ggsave(disease_roc, filename = file.path(this.figures.dir, paste0(hk, "_ROC_mean_z_transformed_scores.png")),
          width = 2500,
          height = 3000,
          units = "px" )
   
   
-  # } #close number of genes loop
-  
-} 
-#scaled + centered is better
+  } #close number of genes loop
+    write.csv(res_table, file.path(this.output.dir, paste0(hk,"_mean_ztransformed_scores_res_table.csv")))
+  write.csv(forestplot_res_table, file.path(this.output.dir, paste0(hk,"_mean_ztransformed_scores_forestplot_res_table.csv")))
+
+} #close hk loop
 
 
 
-### Forest plots ####
+ ### Forest plots ####
 library(tidyverse)
 
 
 for (hk in names(listofresults)){ # housekeeping gene loop
-  
+    listofstandardised_scores <- listofresults[[hk]]
+# 
+#   for(g in names(listofstandardised_scores)){
+
   this.output.dir <- file.path(validation.dir, hk)
   if(!exists(this.output.dir)) dir.create(this.output.dir)
   
   this.figures.dir <- file.path(this.output.dir, "figures")
   if(!exists(this.figures.dir)) dir.create(this.figures.dir)
-  
-  listofstandardised_scores <- listofresults[[hk]]
-  
-  
+  # 
+  # gene_list <- paste0(
+  #  g,":", paste0(listofstandardised_scores[[g]][["gene_list"]], collapse = ",")
+  # )
+  gene_list <- paste0(
+    "7_genes:", paste0(listofstandardised_scores[["7_genes"]][["gene_list"]], collapse = ","), "\n",
+    "4_genes:", paste0(listofstandardised_scores[["4_genes"]][["gene_list"]], collapse = ","), "\n"
+    
+  )
   forestplot_theme <- theme(axis.title = element_text(size =  16),
                             axis.text = element_text(size = 14),
                             legend.position = "None") 
   
   res_table <- read.csv(file.path(this.output.dir, paste0(hk,"_mean_ztransformed_scores_forestplot_res_table.csv")), row.names = 1)
-  
   # other gene signatures don't need to be plotted, can rename axis to HC_T0 vs TB_T0
-  res_table$numberofgenes <- "HC_T0 vs TB_T0"
   res_table$comparison <- "HC_T0 vs TB_T0"
   
   colours<- c(
-    "HC_T0 vs TB_T0" = "#F8766D")
-  
+    "7_genes" = "#009E73",
+    "4_genes" = "#CC79A7")
+
   auc_plot <- res_table %>% 
-    ggplot(aes(y = comparison)) + 
+    ggplot(aes(y = numberofgenes)) + 
     theme_bw() +
-    geom_point(aes(x=auc, color = comparison), shape=15, size=3) +
+    geom_point(aes(x=auc, color = numberofgenes), shape=15, size=3) +
     geom_linerange(aes(xmin=auc_ci_low, 
                        xmax=auc_ci_high, 
-                       color = comparison),
+                       color = numberofgenes),
                    size = 1) +
     forestplot_theme +
     scale_colour_manual(values = colours)+
@@ -751,31 +762,31 @@ for (hk in names(listofresults)){ # housekeeping gene loop
     coord_cartesian( xlim=c(0.1, 1))
   
   sens_plot <- res_table %>% 
-    ggplot(aes(y = comparison)) + 
+    ggplot(aes(y = numberofgenes)) + 
     theme_bw() +
-    geom_point(aes(x=sensitivity, color = comparison), shape=15, size=3) +
+    geom_point(aes(x=sensitivity, color = numberofgenes), shape=15, size=3) +
     geom_linerange(aes(xmin=sensitivity_ci_low, 
                        xmax=sensitivity_ci_high, 
-                       color = comparison),
-                   size = 1) +
-    forestplot_theme +
-    scale_colour_manual(values = colours)+
-    ylab(NULL)+
-    xlab("Specificity")+
-    coord_cartesian( xlim=c(0.1, 1))
-  
-  spec_plot <- res_table %>% 
-    ggplot(aes(y = comparison)) + 
-    theme_bw() +
-    geom_point(aes(x=specificity, color = comparison), shape=15, size=3) +
-    geom_linerange(aes(xmin=specificity_ci_low, 
-                       xmax=specificity_ci_high, 
-                       color = comparison),
+                       color = numberofgenes),
                    size = 1) +
     forestplot_theme +
     scale_colour_manual(values = colours)+
     ylab(NULL)+
     xlab("Sensitivity")+
+    coord_cartesian( xlim=c(0.1, 1))
+  
+  spec_plot <- res_table %>% 
+    ggplot(aes(y = numberofgenes)) + 
+    theme_bw() +
+    geom_point(aes(x=specificity, color = numberofgenes), shape=15, size=3) +
+    geom_linerange(aes(xmin=specificity_ci_low, 
+                       xmax=specificity_ci_high, 
+                       color = numberofgenes),
+                   size = 1) +
+    forestplot_theme +
+    scale_colour_manual(values = colours)+
+    ylab(NULL)+
+    xlab("Specificity")+
     coord_cartesian( xlim=c(0.1, 1))
   
   
@@ -785,16 +796,18 @@ for (hk in names(listofresults)){ # housekeeping gene loop
   
   panel_forest <- annotate_figure(
     panel_forest,
+    top = text_grob("HC_T0 vs TB_T0", size = 14, hjust = 0, x = 0),
     bottom = text_grob(paste0("Normalised to ",hk,"\nSenstivity and specificity calculated at Youden threshold \n",
                               gene_list), 
-                       size = 10, hjust = 0, x = 0)
+                       size = 12, hjust = 0, x = 0)
   )
   
   
-  ggsave(panel_forest, filename= file.path(this.figures.dir, paste0(hk, "_forestplot_panel.png")),
-         width = 15, height = 15, units = "cm",   bg = "white"  )
+  ggsave(panel_forest, filename= file.path(this.figures.dir, paste0(hk,"_forestplot_panel.png")),
+         width = 15, height = 20, units = "cm",   bg = "white"  )
   
-}
+  # } #close gene signature loop
+} #close hk loop
 
 
 

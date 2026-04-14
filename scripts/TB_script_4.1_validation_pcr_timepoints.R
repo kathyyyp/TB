@@ -1,3 +1,4 @@
+#This script contains comparison of longitudinal treatment timepoint data (PCR Validation cohort)
 
 
 # ================================================================================== #
@@ -5,14 +6,11 @@
 # ================================================================================== #
 
 # Mac
-my_directory <- "/Users/kathyphung/Library/CloudStorage/OneDrive-UTS/Documents/RBMB/TB"
-setwd(file.path(my_directory))
-.libPaths("/Volumes/One Touch/rlibrary")
+my_directory <- "/Volumes/One Touch/RBMB"
+main.dir <- file.path(my_directory, "TB")
+setwd(file.path(main.dir))
+.libPaths("/Volumes/One Touch/RBMB/rlibrary")
 
-# Windows
-my_directory <- "C:/Users/165861_admin/OneDrive - UTS/Documents/RBMB/TB"
-setwd(file.path(my_directory))
-.libPaths("C:/Users/165861_admin/OneDrive - UTS/rlibrary")
 
 
 library(pROC)
@@ -28,12 +26,12 @@ library(limma)
 # ================================================================================== #
 # B. SET UP DIRECTORY & OUTPUT PATHS ===============================================
 # ================================================================================== #
-main.dir <- my_directory
-data.dir <- file.path(my_directory, "data")
-processed.dir <- file.path(my_directory, "data", "processed")
-output.dir <- file.path(my_directory,"output")
-validation.dir <- file.path(output.dir,"validation", "longitudinal", "rm3200200_3204957")
+data.dir <- file.path(main.dir, "data")
+processed.dir <- file.path(data.dir, "processed")
+output.dir <- file.path(main.dir, "output_v2")
+validation.dir <- file.path(output.dir,"validation_cohort_pcr", "longitudinal")
 if(!exists(validation.dir)) dir.create(validation.dir)
+
 
 
 
@@ -52,8 +50,6 @@ if(!exists(validation.dir)) dir.create(validation.dir)
 # 
 # TB T0 plate, 3200063 and 3200744 are household contacts,not TB patients.
 # I moved these samples from TBT0 to HCT0 plate (matches clinical file)
-
-setwd(file.path(data.dir,"raw"))
 
 #clinical
 HC_T0_meta <- read_excel(file.path(data.dir, "raw", "RNA signature validation study pt infos 16122025 Kathy.xlsx"), sheet = "HCT0", col_names = TRUE) 
@@ -75,7 +71,7 @@ T4P_Plate2_ct <- read_excel(file.path(data.dir, "raw", "Biomarkers Raw Data for 
 T4P_Plate3_ct <- read_excel(file.path(data.dir, "raw", "Biomarkers Raw Data for Analyse with new GAPDH 22012026.xlsx"), sheet = "T4P Plate 3", col_names = FALSE) 
 T4P_Plate4_ct <- read_excel(file.path(data.dir, "raw", "Biomarkers Raw Data for Analyse with new GAPDH 22012026.xlsx"), sheet = "T4P Plate 4", col_names = FALSE) 
 
-setwd(file.path(main.dir))
+
 
 # ================================================================================== #
 # 2. CLEAN UP EXPRESSION DATA ======================================================
@@ -549,12 +545,12 @@ for (hk in names(listof_normdata)){
                          axis.text.x = element_blank(),      
                          axis.ticks.x = element_blank()) 
   
-  plot <- ggplot(expr_long, aes(x = disease, y = expression, color=disease
+  plot <- ggplot(expr_long, aes(x = disease, y = expression, group = group
                                 # , label = sample
   ))+
     geom_boxplot(outlier.shape=NA, alpha=0.2) +
     
-    geom_jitter(width=0.2, size=1) +
+    geom_jitter(width=0.2, size=1,aes(color = group)) +
     
     theme_bw() +
     
@@ -563,7 +559,7 @@ for (hk in names(listof_normdata)){
     
     stat_summary(fun.y = mean, fill = "red",
                  geom = "point", shape = 21, size =2,
-                 show.legend = TRUE) +
+                 show.legend = FALSE) +
     stat_pvalue_manual(
       stat.table.full,
       label = "p",
@@ -605,14 +601,14 @@ for (hk in names(listof_normdata)){
   scaledcentered_mean_func <- function(number_of_genes = "7"){
     
     expr_set<-expression[row.names(expression),]
-    
-    if(number_of_genes == "6"){
-      expr_set <- expr_set[!row.names(expr_set) == "S100A8",]
-    }
-    
-    if(number_of_genes == "5"){
-      expr_set <- expr_set[-c(which(row.names(expr_set) == "S100A8" | row.names(expr_set) == "CD274")),]
-    }
+    # 
+    # if(number_of_genes == "6"){
+    #   expr_set <- expr_set[!row.names(expr_set) == "S100A8",]
+    # }
+    # 
+    # if(number_of_genes == "5"){
+    #   expr_set <- expr_set[-c(which(row.names(expr_set) == "S100A8" | row.names(expr_set) == "CD274")),]
+    # }
     
     if(number_of_genes == "4"){
       expr_set <- expr_set[-c(which(row.names(expr_set) == "S100A8" | row.names(expr_set) == "CD274" | row.names(expr_set) == "IFITM1")),]
@@ -662,7 +658,7 @@ for (hk in names(listof_normdata)){
   listofstandardised_scores[["7_genes"]] <- scaledcentered_mean_func()
   # listofstandardised_scores[["6_genes"]] <- scaledcentered_mean_func(number_of_genes = "6")
   # listofstandardised_scores[["5_genes"]] <- scaledcentered_mean_func(number_of_genes = "5")
-  # listofstandardised_scores[["4_genes"]] <- scaledcentered_mean_func(number_of_genes = "4")
+  listofstandardised_scores[["4_genes"]] <- scaledcentered_mean_func(number_of_genes = "4")
   
   listofresults[[hk]] <- listofstandardised_scores
   
@@ -701,9 +697,8 @@ for (hk in names(listofresults)){
   
   ## SCALED & CENTERED =================================================
   #loop over 4, 5, 6 and 7genes
-  # for(g in names(listofstandardised_scores)){
+  for(g in names(listofstandardised_scores)){
   
-  g = "7_genes"
   score_data <- listofstandardised_scores[[g]][["scores"]]
   
   gene_list <- listofstandardised_scores[[g]][["gene_list"]]
@@ -834,13 +829,14 @@ for (hk in names(listofresults)){
   boxplot_scaledcentered <- ggplot(boxplot_data, aes(
     x = factor(group),
     # x = factor(group),
-    y = as.numeric(boxplot_data[,"score"]))) +
+    y = as.numeric(boxplot_data[,"score"]),
+    group = group)) +
     
     theme_bw()+
     
     gsva_theme +
     
-    geom_boxplot(aes(color = group),position = position_dodge(1)) +
+    geom_boxplot(position = position_dodge(1)) +
     
     # Unpaired boxplot
     geom_jitter(aes(color = group),
@@ -866,24 +862,25 @@ for (hk in names(listofresults)){
     
     stat_summary(fun.y = mean, fill = "red",
                  geom = "point", shape = 21, size =4,
-                 show.legend = TRUE) +
+                 show.legend = FALSE) +
     
     
-    labs(title = paste0("HB_T0 vs TB_T0 expression"),
-         caption = paste("Signature:", paste0(gene_list, collapse = ","))) +
+    labs(title = paste0("Treatment Timepoints Signature Performance"),
+         caption = paste("Signature:", paste0(gene_list, collapse = ","), "\n",
+                         "Relative expression normalized to", hk)) +
     ylab (label = "Mean of scaled & centered expression") +
     xlab (label = "Condition") 
   
   
-  ggsave(boxplot_scaledcentered, filename = file.path(this.figures.dir, paste0(hk,"_boxplot_mean_ztransformed.png")),
-         width = 2000,
+  ggsave(boxplot_scaledcentered, filename = file.path(this.figures.dir, paste0(hk,"_", g,"_boxplot_mean_ztransformed.png")),
+         width = 2600,
          height = 2200,
          units = "px" )
   
   # listofboxplots_scaledcentered[[g]] <- ggplotGrob(boxplot_scaledcentered) #ggGrob freezes the image in place, otherwise the pvalue brackets move when put into the list
   
   
-  # } #close loop for number of genes
+  } #close loop for number of genes
   # 
   # boxplot_scaledcentered_panel <- annotate_figure(
   #   ggarrange(
@@ -943,13 +940,12 @@ for (hk in names(listofresults)){ # housekeeping gene loop
   res_table <- data.frame() 
   roc_objects <- list()
   
-  # for(g in names(listofstandardised_scores)){ # number of genes loop
+  for(g in names(listofstandardised_scores)){ # number of genes loop
   
-  g = "7_genes"
   forestplot_res_table <- data.frame()
   
   score_data <- listofstandardised_scores[[g]][["scores"]]
-  
+
   
   
   
@@ -969,16 +965,7 @@ for (hk in names(listofresults)){ # housekeeping gene loop
     subset_clinical$group <- factor(subset_clinical$group, levels = c(group1, group2))
     
     
-    
-    
-    gene_list <- paste(
-      "7_genes:", paste0(listofstandardised_scores[["7_genes"]][["gene_list"]], collapse = ","), "\n",
-      "6_genes:", paste0(listofstandardised_scores[["6_genes"]][["gene_list"]], collapse = ","), "\n",
-      "5_genes:", paste0(listofstandardised_scores[["5_genes"]][["gene_list"]], collapse = ","), "\n",
-      "4_genes:", paste0(listofstandardised_scores[["4_genes"]][["gene_list"]], collapse = ","), "\n"
-      
-    )
-    
+
     mean_standardised_scores <- as.data.frame(t(as.matrix(subset_counts)))
     mean_standardised_scores$group <- clinical[colnames(subset_counts), "group"]
     
@@ -1043,7 +1030,7 @@ for (hk in names(listofresults)){ # housekeeping gene loop
     
     write.csv(forestplot_res_table, file.path(this.output.dir, paste0(hk,"_", g, "_mean_ztransformed_scores_forestplot_res_table.csv")))
     
-    roc_objects[[paste0(group1," vs ",group2)]] <- roc_obj
+    roc_objects[[g]][[paste0(group1," vs ",group2)]] <- roc_obj
     
   }
   
@@ -1052,12 +1039,12 @@ for (hk in names(listofresults)){ # housekeeping gene loop
   ## 5) ROC Curves -----------------------------------------------------------
   
   # Convert ROC data to a format suitable for ggplot
-  roc_data <- do.call(rbind, lapply(names(roc_objects), function(comparison) {
+  roc_data <- do.call(rbind, lapply(names(roc_objects[[g]]), function(comparison) {
     data.frame(
-      TPR = rev(roc_objects[[comparison]]$sensitivities),  # True Positive Rate
-      FPR = rev(1 - roc_objects[[comparison]]$specificities),  # False Positive Rate
+      TPR = rev(roc_objects[[g]][[comparison]]$sensitivities),  # True Positive Rate
+      FPR = rev(1 - roc_objects[[g]][[comparison]]$specificities),  # False Positive Rate
       Comparison = comparison,
-      auc = rev(roc_objects[[comparison]]$auc)
+      auc = rev(roc_objects[[g]][[comparison]]$auc)
     )
   }))
   
@@ -1162,10 +1149,7 @@ for (hk in names(listofresults)){ # housekeeping gene loop
          units = "px" )
   
   
-  
-  
-  
-  # } #close number of genes loop
+  } #close number of genes loop
 } #close housekeeping gene loop
 
 
@@ -1187,8 +1171,8 @@ for (hk in names(listofresults)){ # housekeeping gene loop
   
   listofstandardised_scores <- listofresults[[hk]]
   
-  # for(g in names(listofstandardised_scores)){ # number of genes loop
-  g = "7_genes"
+  for(g in names(listofstandardised_scores)){ # number of genes loop
+
   
   forestplot_theme <- theme(axis.title = element_text(size =  16),
                             axis.text = element_text(size = 14),
@@ -1246,7 +1230,7 @@ for (hk in names(listofresults)){ # housekeeping gene loop
       forestplot_theme +
       scale_colour_manual(values = colours)+
       ylab(NULL)+
-      xlab("Specificity")+
+      xlab("Sensitivity")+
       coord_cartesian( xlim=c(0.1, 1))
     
     spec_plot <- res_table %>% 
@@ -1260,7 +1244,7 @@ for (hk in names(listofresults)){ # housekeeping gene loop
       forestplot_theme +
       scale_colour_manual(values = colours)+
       ylab(NULL)+
-      xlab("Sensitivity")+
+      xlab("Specificity")+
       coord_cartesian( xlim=c(0.1, 1))
     
     
@@ -1280,7 +1264,7 @@ for (hk in names(listofresults)){ # housekeeping gene loop
            width = 15, height = 20, units = "cm",   bg = "white"  )
     
     
-  }
+  } #close HC or TB 
   
-  # } #number of genes loop
-}
+  } #number of genes loop
+} # close hk loop

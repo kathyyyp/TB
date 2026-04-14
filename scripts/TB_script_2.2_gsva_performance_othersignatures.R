@@ -75,8 +75,9 @@ missing_counts <- sapply(gene_sets, function(genes) {
 data.frame(gene_sets = names(gene_sets), Missing_Genes = missing_counts)
 
 
-
-# DISEASE -----------------------------------------
+#==============================================================================================================#
+# ======================================= DISEASE (TB_T0 vs HC_T0) =============================================
+#==============================================================================================================#
 ## 1) Subset
 #Make Disease a factor
 Disease <- clinical$Disease
@@ -244,9 +245,9 @@ boxplotcombined <- ggplot(boxplot_gsva_long, aes(
     geom_boxplot(position = position_dodge(0.75),
                  width = 0.4) +
     
-    geom_point(position = position_jitterdodge(dodge.width = 0.75, jitter.width = 0.2), 
-               alpha=0.5,
-              size = 2) +
+    # geom_point(position = position_jitterdodge(dodge.width = 0.75, jitter.width = 0.2), 
+    #            alpha=0.5,
+    #           size = 2) +
 
     stat_summary(fun.y = mean, fill = "red",
                  geom = "point", shape = 21, size =4,
@@ -569,7 +570,9 @@ res_table[,-1] <- lapply(res_table[,-1], as.numeric)
   
   
   
-# HC_T6 vs HC_T0 -----------------------------------------
+#==============================================================================================================#
+#============================================= HC_T6 vs HC_T0) ================================================
+#============================================================================================================== #
 ## 1) Subset
 #Make Disease a factor
 Condition <- clinical$condition
@@ -737,9 +740,9 @@ boxplotcombined <- ggplot(boxplot_gsva_long, aes(
     geom_boxplot(position = position_dodge(0.75),
                  width = 0.4) +
     
-    geom_point(position = position_jitterdodge(dodge.width = 0.75, jitter.width = 0.2), 
-               alpha=0.5,
-              size = 2) +
+    # geom_point(position = position_jitterdodge(dodge.width = 0.75, jitter.width = 0.2), 
+    #            alpha=0.5,
+    #           size = 2) +
 
     stat_summary(fun.y = mean, fill = "red",
                  geom = "point", shape = 21, size =4,
@@ -1081,8 +1084,9 @@ res_table[,-1] <- lapply(res_table[,-1], as.numeric)
   
   
   
-  
- # TIMEPOINT------------------------------------------------------------------------------------------------------------------
+#==============================================================================================================#
+#============================================== TIMEPOINTS ====================================================
+#============================================================================================================== #
 # A) FOR BOXPLOT -----------
 ## 1) Subset (all timepoints) ------
 Timepoint <- clinical$Timepoint
@@ -1238,7 +1242,7 @@ stat.table <- stat.table %>%
   group_by(signature) %>%
   arrange(signature) %>%  
   mutate(
-    y.position = y.position + 0.05 * (row_number() - 1)
+    y.position = (ymax+ymax*0.1) + 0.12 * (row_number() - 1)
   ) %>%
   ungroup()
 
@@ -1265,9 +1269,9 @@ boxplotcombined <- ggplot(boxplot_gsva_long, aes(
     geom_boxplot(position = position_dodge(0.75),
                  width = 0.4) +
     
-    geom_point(position = position_jitterdodge(dodge.width = 0.75, jitter.width = 0.2), 
-               alpha=0.5,
-              size = 2) +
+    # geom_point(position = position_jitterdodge(dodge.width = 0.75, jitter.width = 0.2), 
+    #            alpha=0.5,
+    #           size = 2) +
 
     stat_summary(fun.y = mean, fill = "red",
                  geom = "point", shape = 21, size =4,
@@ -1430,11 +1434,24 @@ for (study in names(gene_sets)){
   
   
   
+#reorder signature so colours are how i want
+roc_data$Comparison <- factor(roc_data$Comparison, levels = names(timepoint_roc_objects))
+
+#reorder legend to match
+roc_data <- roc_data %>%
+  mutate(
+    #get first word of signature and remove the :
+    legend_first_word = str_remove(word(legend, 1, 3),":"),
+    # rorder legend factor based on signature factor order
+    legend = factor(legend, levels = legend[match(levels(Comparison), legend_first_word)])
+  )
+
   timepoint_roc <- ggplot(roc_data, aes(x = FPR, y = TPR, color = legend)) +
     geom_line(size = 1.2) +
     theme_bw() +
     geom_abline(slope = 1, intercept = 0, linetype = "dashed", color = "black")  +
     guides(colour = guide_legend(nrow = 2)) +
+        scale_color_manual(values = c("#F564E3","#619CFF", "#B79F00")) +
     theme(legend.position = "bottom",
           legend.title = element_blank(),
           axis.title = element_text(size = 24),
