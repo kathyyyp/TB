@@ -1472,13 +1472,14 @@ stat.table.all$y.position <- seq(lowest_bracket, by= 0.3, length.out = nrow(stat
 ## Boxplot ggplot2 ---------------------------------------------------------------------------------------
 boxplotfinal <- ggplot(boxplot_mean_zscore, aes(
   x = factor(group),
-  y = as.numeric(boxplot_mean_zscore[,1]))) +
+  y = as.numeric(boxplot_mean_zscore[,1]),
+  group = group)) +
   
   theme_bw()+
   
   gsva_theme +
   
-  geom_boxplot(aes(color = group),position = position_dodge(1)) +
+  geom_boxplot(position = position_dodge(1)) +
   
   
   stat_pvalue_manual(stat.table.all,
