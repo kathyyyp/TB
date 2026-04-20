@@ -124,7 +124,7 @@ write.table(clinical, file.path("clinical.txt"))
 
 counts_norm <- counts_vst
 
-gene_set_list <- list(c("TAP1",]"GBP5","GBP2","FCGR1CP"))
+gene_set_list <- list(c("TAP1", "GBP5","GBP2","FCGR1CP"))
 
 # Get the gene IDs instead of HGNCs
 signature_geneid <- as.character(gene_annot[match(gene_set_list[[1]], gene_annot$Symbol), "GeneID"])
