@@ -124,7 +124,7 @@ write.table(clinical, file.path("clinical.txt"))
 
 counts_norm <- counts_vst
 
-gene_set_list <- list(c("TAP1","GBP5","GBP2","FCGR1CP"))
+gene_set_list <- list(c("TAP1",]"GBP5","GBP2","FCGR1CP"))
 
 # Get the gene IDs instead of HGNCs
 signature_geneid <- as.character(gene_annot[match(gene_set_list[[1]], gene_annot$Symbol), "GeneID"])
@@ -223,14 +223,14 @@ ggplot(boxplot, aes(
                      label = "p",
                      tip.length = 0.01,
                      vjust = 0.3,
-                     size = 4)+
+                     size = 6)+
   stat_summary(fun.y = mean, fill = "red",
                geom = "point", shape = 21, size =4,
                show.legend = TRUE) +
   # # scale_x_discrete(labels= c("Control" = "Control", "Mild.moderate.COPD" = "mCOPD", "Severe.COPD" = "sCOPD"))+
   # scale_y_continuous(expand = c(0.07, 0, 0.07, 0)) +
   
-  theme(axis.text.x = element_text(size = 15))+
+  # theme(axis.text.x = element_text(size = 15))+
   ylab (label = "Signature Score") +
   xlab (label = "Disease")
 
@@ -258,7 +258,9 @@ for (outcome in c("all_outcomes", "not_cured", "cured")){
        caption = paste0("Signature:TAP1, GBP5, GBP2, FCGR1CP", "\n", "n=", nrow(boxplot),"\n",
        "Signature scores calculated as mean of z-scored expression of signature genes\n",
        "Raw counts were VST normalised (DESeq2 1.42.1)\n",
-       "P values from Mann-Whitney U test shown")) 
+       "P values from Mann-Whitney U test shown")) +
+        theme(axis.text.x = element_text(size = 15))
+
     
     ggsave(boxplotfig, filename = file.path(this.figure.dir, paste0("meanzscore_plot_", this.accession.no, "_", outcome, ".png")),
        width = 3500,
@@ -291,13 +293,13 @@ pairwise_comparisons <- list(
 
 # Define for plotting
 comparison_levels <- c(
-  "HealthyvsTB_DX",
-  "MTP_ctrlvsTB_DX",
-  "TB_DXvsTB_day_7",
-  "TB_DXvsTB_week_4",
-  "TB_DXvsTB_week_24",
-  "HealthyvsTB_week_24",
-  "MTP_ctrlvsTB_week_24"
+  "Healthy vs TB_DX",
+  "MTP_ctrl vs TB_DX",
+  "TB_DX vs TB_day_7",
+  "TB_DX vs TB_week_4",
+  "TB_DX vs TB_week_24",
+  "Healthy vs TB_week_24",
+  "MTP_ctrl vs TB_week_24"
 )
 
 
@@ -383,7 +385,7 @@ all(row.names(mean_sig_zscore) == row.names(subset_clinical))
   ci_spec <- ci.sp(roc_obj, sensitivities =  as.numeric(optimal_threshold_coords["sensitivity"]))
   
   res_current <-cbind(
-    comparison = paste0(group1,"vs",group2),
+    comparison = paste0(group1," vs ",group2),
     samples_group1 = paste(group1, "=", sum(glm_data$Group == group1)),
     samples_group2 = paste(group2, "=", sum(glm_data$Group == group2)),
     auc = auc(roc_obj),
@@ -396,7 +398,7 @@ all(row.names(mean_sig_zscore) == row.names(subset_clinical))
   res_table <- rbind(res_table, res_current)
   
   forestplot_res_table <- rbind(forestplot_res_table, 
-                                cbind(comparison = paste0(group1,"vs",group2),
+                                cbind(comparison = paste0(group1," vs ",group2),
                                       auc = auc(roc_obj),
                                       auc_ci_low = as.numeric(auc_ci[1]),
                                       auc_ci_high = as.numeric(auc_ci[3]),
@@ -410,7 +412,7 @@ all(row.names(mean_sig_zscore) == row.names(subset_clinical))
                                       specificity_ci_high = ci_spec[, "97.5%"])
   )
   
-  roc_objects[[paste0(group1,"vs",group2)]] <- roc_obj
+  roc_objects[[paste0(group1," vs ",group2)]] <- roc_obj
   
 } # close pair
   
@@ -642,6 +644,9 @@ for (outcome in c("all_outcomes", "not_cured","cured")){
     
   #run roc_func again to get the results for this outcome type
 roc_func_res <- roc_func(outcome = outcome)
+res_table <- roc_func_res$res_table
+forestplot_res_table <- roc_func_res$forestplot_res_table
+roc_data <- roc_func_res$roc_data
 
 # disease plot
 disease_roc <- disease_roc_plot_func()
@@ -820,7 +825,9 @@ boxplotfig <- boxplotfig + scale_x_discrete(labels= c("Healthy" = "Healthy",
        caption = paste0("Signature:TAP1, GBP5, GBP2, FCGR1CP", "\n", "n=", nrow(boxplot),"\n",
        "Signature scores calculated as mean of z-scored expression of signature genes\n",
        "Raw counts were VST normalised (DESeq2 1.42.1)\n",
-       "P values from Mann-Whitney U test shown")) 
+       "P values from Mann-Whitney U test shown")) +
+          theme(axis.text.x = element_text(size = 16)) 
+
   
 
 
@@ -906,16 +913,13 @@ timepoint_roc_subset <- c("Active TB vs Incipient TB baseline",
   "Active TB vs Subclinical TB followup")
 
 
-disease_legend_nrow = 3
-timepoint_legend_nrow = 2
-
 roc_plot_width = 3200
 roc_plot_height = 3500
   
 
 
 # disease plot
-disease_roc <- disease_roc_plot_func(legend_nrow = 2)
+disease_roc <- disease_roc_plot_func(legend_nrow = 3)
 ggsave(disease_roc, filename = file.path(this.figure.dir, paste0("disease_roc_", outcome,".png")), 
        width = roc_plot_width, 
        height = roc_plot_height, 
@@ -1067,7 +1071,7 @@ boxplotfig <- boxplotfig + labs(title = paste0("Signature Analysis: ", this.acce
 
 ggsave(boxplotfig, filename = file.path(this.figure.dir, paste0("meanzscore_plot_", this.accession.no, ".png")),
        width = 3000,
-       height = 2700,
+       height = 2800,
        units = "px" )
 
 
@@ -1512,250 +1516,6 @@ ggsave(panel_forest, filename= file.path(this.figure.dir, paste0("forestplot_pan
   
   
   
-# 
-# 
-# # Loop through each pairwise comparison
-# for (pair in pairwise_comparisons) {
-#   
-#   group1 <- pair[1]
-#   group2 <- pair[2]
-#   
-#   subset_clinical <- clinical[which(clinical$months == 0| clinical$group == "Healthy"),]
-#   subset_clinical[which(subset_clinical$group == "Healthy"), "months"] <- 0
-#   
-#   # Subset data to omly include the 2 rgroups of interest
-#   subset_clinical <- subset_clinical[subset_clinical$group %in% c(group1,group2),]
-#   subset_counts <- counts_norm[, row.names(subset_clinical)]
-#   
-#   subset_clinical$group <- factor(subset_clinical$group, levels = c(group1, group2))
-#   
-#   # Mean-zscore
-# # Get the gene IDs instead of HGNCs
-# gene_set_list <- list(c("TAP1","GBP5","GBP2","FCGR1B"))
-# 
-# signature_geneid <- as.character(gene_annot[match(gene_set_list[[1]], gene_annot$GENE_SYMBOL), "REFSEQ"])
-# gene_set_list <- c(signature_geneid)
-# 
-# 
-# if(length(signature_geneid) < 4){ 
-#   print("Missing gene in signature after genone_annot conversion")
-#   stop() }
-# 
-# # For each sample, get the mean standardized expression of genes in the 4-gene signature
-# 
-# gene_set <- subset_counts[gene_set_list,]
-# gene_set <- t(gene_set) #genes are columns so we can z-score column-wise (centre = centre each gene around its own mean)
-#       # Gene-wise z-score = for each gene, how does this sample compare to all other samples for that gene, then average across our 7 genes
-#       # This tells you if a sample has collectively high expression of your gene set relative to the cohort      
-# gene_set_zscore<-scale(gene_set, center=T, scale=T)   # This results in a standardized dataset with mean = 0 and standard deviation = 1 (z-score transformation).
-#       #take the mean of the scaled+centred data for each gene and use this as each sample's score
-#       #each row is a sample and each column is a gene. we are taking the average ACROSS the columns so every sample gets 1 score
-# mean_sig_zscore<- data.frame(rowMeans(gene_set_zscore))
-# colnames(mean_sig_zscore) <- "score"
-# 
-# all(row.names(mean_sig_zscore) == row.names(subset_clinical))
-# 
-#   
-#   glm_data <- data.frame(Score = mean_sig_zscore[,"score"], Group = subset_clinical$group)
-#   
-#   table(glm_data$Group)
-#   
-#   
-#   glm_data$Group <- factor(glm_data$Group, levels = c(group1, group2))
-#   glm_model <- glm(Group ~ Score, data = glm_data, family = binomial) 
-#   
-#   test_probs <- predict(glm_model, type = "response")
-#   
-#   roc_obj <- roc(glm_data$Group, test_probs)
-#   
-#   plot(roc_obj)
-#   auc(roc_obj)
-#   auc_ci <- ci.auc(roc_obj)
-#   
-#   #  The "optimal threshold" refers to the point on the ROC curve where you achieve the best balance between sensitivity and specificity, or where the classifier is most effective at distinguishing between the positive and negative classes.
-#   optimal_threshold_coords <- coords(roc_obj, "best", ret = c("threshold", "sensitivity", "specificity", best.method = "youden"))
-#   
-#   
-#   if(nrow(optimal_threshold_coords) > 1) {
-#     optimal_threshold_coords <- optimal_threshold_coords[1,] # some output have 2 equally optimal thresholds = same AUC. just keep  first one as results are the same
-#   }
-#   
-#   
-# 
-#   # Sensitivity confidence interval (at optimal specificity)
-#   ci_sens <- ci.se(roc_obj, specificities =  as.numeric(optimal_threshold_coords["specificity"])) 
-#   
-#   # Specificity confidence interval (at optimal sensitivity)
-#   ci_spec <- ci.sp(roc_obj, sensitivities =  as.numeric(optimal_threshold_coords["sensitivity"]))
-#   
-#   res_current <-cbind(
-#     comparison = paste0(group1,"vs",group2),
-#     samples_group1 = paste(group1, "=", sum(glm_data$Group == group1)),
-#     samples_group2 = paste(group2, "=", sum(glm_data$Group == group2)),
-#     auc = auc(roc_obj),
-#     ci = paste0(round(as.numeric(auc_ci[1]),2), "-", round(as.numeric(auc_ci[3]),2)),
-#     sensitivity = optimal_threshold_coords$sensitivity, 
-#     specificity = optimal_threshold_coords$specificity
-#     
-#   )
-#   
-#   res_table <- rbind(res_table, res_current)
-#   
-#   forestplot_res_table <- rbind(forestplot_res_table, 
-#                                 cbind(comparison = paste0(group1,"vs",group2),
-#                                       auc = auc(roc_obj),
-#                                       auc_ci_low = as.numeric(auc_ci[1]),
-#                                       auc_ci_high = as.numeric(auc_ci[3]),
-#                                       
-#                                       sensitivity = optimal_threshold_coords$sensitivity, 
-#                                       sensitivity_ci_low = ci_sens[, "2.5%"],
-#                                       sensitivity_ci_high = ci_sens[, "97.5%"],
-#                                       
-#                                       specificity = optimal_threshold_coords$specificity,
-#                                       specificity_ci_low = ci_spec[, "2.5%"],
-#                                       specificity_ci_high = ci_spec[, "97.5%"])
-#   )
-#   
-#   roc_objects[[paste0(group1,"vs",group2)]] <- roc_obj
-#   
-# } # close pair
-#   
-# write.csv(res_table, file.path(this.accession.res.dir, paste0(this.accession.no,"_res_table_", outcome, ".csv")))
-# write.csv(forestplot_res_table, file.path(this.accession.res.dir, paste0(this.accession.no,"_mean_ztransformed_scores_forestplot_res_table_", outcome, ".csv")))
-# 
-# 
-# 
-# # 5) ROC Curves & Forest plot-----------------------------------------------------------
-# 
-# # Convert ROC data to a format suitable for ggplot
-# roc_data <- do.call(rbind, lapply(names(roc_objects), function(comparison) {
-#   data.frame(
-#     TPR = rev(roc_objects[[comparison]]$sensitivities),  # True Positive Rate
-#     FPR = rev(1 - roc_objects[[comparison]]$specificities),  # False Positive Rate
-#     Comparison = comparison,
-#     auc = rev(roc_objects[[comparison]]$auc)
-#   )
-# }))
-# 
-# roc_data$Comparison <- factor(roc_data$Comparison, levels = comparison_levels)
-# 
-# roc_data$Comparison_plotlabel <- roc_data$Comparison
-# levels(roc_data$Comparison_plotlabel) <-  comparison_plotlabel_levels
-# 
-# roc_data$ci <- res_table[match(roc_data$Comparison, res_table$comparison), "ci"]
-# 
-# roc_data$legend <- paste0(roc_data$Comparison_plotlabel,": \n AUC = ", 
-#                           round(roc_data$auc, 2), " (", roc_data$ci, ")")
-# 
-# 
-# 
-# # Disease plot
-# disease_roc_data <- roc_data
-# 
-# disease_roc <- ggplot(disease_roc_data, aes(x = FPR, y = TPR, color = legend)) +
-#   geom_line(size = 1.2) +
-#   theme_bw() +
-#   geom_abline(slope = 1, intercept = 0, linetype = "dashed", color = "black")  +
-#   guides(colour = guide_legend(nrow = disease_legend_nrow)) +
-#   theme(legend.position = "bottom",
-#         legend.title = element_blank(),
-#         axis.title = element_text(size = 24),
-#         axis.text = element_text(size = 24),
-#         legend.text = element_text(size = 16),
-#         title = element_text(size = 20)) +
-# 
-#   labs(
-#     title = paste0("ROC - Control vs TB", " (", outcome, ")"),
-#     x = "FPR (1 - Specificity)",
-#     y = "TPR (Sensitivity)",
-#     color = "Comparison",
-#        caption = paste0("Signature:TAP1, GBP5, GBP2, FCGR1B", "\n", 
-#                         "Note: FCGR1CP was not annotated in GPL13497; FCGR1B was used as a proxy"))
-#     
-#     
-# ggsave(disease_roc, filename = file.path(this.figure.dir, paste0("disease_roc_", outcome,".png")), 
-#        width = roc_plot_width, 
-#        height = roc_plot_height, 
-#        units = "px")
-# 
-# ## Forest plot -------
-# res_table <- forestplot_res_table
-#   
-# res_table$comparison <- factor(res_table$comparison, levels = comparison_levels)
-#   
-# res_table[,-1] <- lapply(res_table[,-1], as.numeric)
-# 
-# 
-# forestplot_theme <- theme(axis.title = element_text(size =  16),
-#                             axis.text = element_text(size = 14),
-#                             legend.position = "None") 
-# 
-# 
-# auc_plot <- res_table %>% 
-#     ggplot(aes(y = comparison)) + 
-#     theme_bw() +
-#     geom_point(aes(x=auc, color = comparison), shape=15, size=3) +
-#     geom_linerange(aes(xmin=auc_ci_low, 
-#                        xmax=auc_ci_high, 
-#                        color = comparison),
-#                    size = 1) +
-#           scale_y_discrete(labels = comparison_plotlabel_levels)+
-#     forestplot_theme +
-#     ylab(NULL)+
-#     xlab("AUC")+
-#     coord_cartesian( xlim=c(0.1, 1))
-# 
-# 
-#   sens_plot <- res_table %>% 
-#     ggplot(aes(y = comparison)) + 
-#     theme_bw() +
-#     geom_point(aes(x=sensitivity, color = comparison), shape=15, size=3) +
-#     geom_linerange(aes(xmin=sensitivity_ci_low, 
-#                        xmax=sensitivity_ci_high, 
-#                        color = comparison),
-#                    size = 1) +
-#         scale_y_discrete(labels = comparison_plotlabel_levels)+
-#     forestplot_theme +
-#     ylab(NULL)+
-#     xlab("Sensitivity")+
-#     coord_cartesian( xlim=c(0.1, 1))
-#   
-#   spec_plot <- res_table %>% 
-#     ggplot(aes(y = comparison)) + 
-#     theme_bw() +
-#     geom_point(aes(x=specificity, color = comparison), shape=15, size=3) +
-#     geom_linerange(aes(xmin=specificity_ci_low, 
-#                        xmax=specificity_ci_high, 
-#                        color = comparison),
-#                    size = 1) +
-#         scale_y_discrete(labels = comparison_plotlabel_levels)+
-#     forestplot_theme +
-#     ylab(NULL)+
-#     xlab("Specificity")+
-#     coord_cartesian( xlim=c(0.1, 1))
-#   
-#   
-#   panel_forest <- ggarrange(plotlist = list(auc_plot, sens_plot, spec_plot ),
-#                             ncol = 1,
-#                             nrow = 3)
-#   
-#   panel_forest <- annotate_figure(
-#     panel_forest,
-#     top = text_grob(paste0(this.accession.no, " (", outcome, ")"), size = 14, hjust = 0, x = 0),
-#     bottom = text_grob(paste0("Senstivity and specificity calculated at Youden threshold \n",
-#                               "Signature:TAP1, GBP5, GBP2, FCGR1B", "\n", 
-#                         "Note: FCGR1CP was not annotated in GPL13497; FCGR1B was used as a proxy"),
-#                        size = 12, hjust = 0, x = 0)
-#   )
-#   
-#     
-#   ggsave(panel_forest, filename= file.path(this.figure.dir, paste0("forestplot_panel_", outcome,".png")),
-#          width = 15, height = 20, units = "cm",   bg = "white"  )
-# 
-#   
-#   
-#   
-  
 # GSE147689 (German validation cohort) ----------------------------------------------------------------------------------------------------------------------------------------
 #free up space and remove objects from previous gse (except for the functions I made and gene_annot)
 
@@ -1955,20 +1715,7 @@ if(length(signature_geneid) < 4){
   stop() }
 
 # For each sample, get the mean standardized expression of genes in the 4-gene signature
-
-gene_set <- counts_norm[gene_set_list,]
-gene_set <- t(gene_set) #genes are columns so we can z-score column-wise (centre = centre each gene around its own mean)
-      # Gene-wise z-score = for each gene, how does this sample compare to all other samples for that gene, then average across our 7 genes
-      # This tells you if a sample has collectively high expression of your gene set relative to the cohort      
-gene_set_zscore<-scale(gene_set, center=T, scale=T)   # This results in a standardized dataset with mean = 0 and standard deviation = 1 (z-score transformation).
-      #take the mean of the scaled+centred data for each gene and use this as each sample's score
-      #each row is a sample and each column is a gene. we are taking the average ACROSS the columns so every sample gets 1 score
-mean_sig_zscore<- data.frame(rowMeans(gene_set_zscore))
-colnames(mean_sig_zscore) <- "score"
-
-if(all(row.names(mean_sig_zscore) != row.names(clinical))){ stop("Row names do not match", this.accession.no)}
-
-
+mean_sig_zscore <- mean_zscore_func()
 
 ## 3.1) Boxplot ---------------------------
 this.figure.dir <- file.path(this.accession.res.dir, "figures", "boxplot")
@@ -2035,262 +1782,69 @@ pairwise_comparisons <- list(
 
 # Define for plotting
 comparison_levels <- c(
-  "DS_TBvsMDR_TB"
-)
-
-
-comparison_plotlabel_levels <- c(
   "DS_TB vs MDR_TB"
 )
+
+
+comparison_plotlabel_levels <- comparison_levels
 
 
 #Make roc function
 this.figure.dir <- file.path(this.accession.res.dir, "figures", "roc")
 if(!exists(this.figure.dir)) dir.create(this.figure.dir)
 
-# Create a list to store AUC values and roc objects
-res_table <- data.frame()
-roc_objects <- list()
-forestplot_res_table <- data.frame()
+clinical_treat <- clinical[which(clinical$months == 0),]
 
-disease_legend_nrow = 2
-roc_plot_width = 3200
-roc_plot_height = 3500
+roc_func_res <- roc_func(outcome = outcome)
+res_table <- roc_func_res$res_table
+forestplot_res_table <- roc_func_res$forestplot_res_table
 
-
-# Loop through each pairwise comparison
-for (pair in pairwise_comparisons) {
-  
-  group1 <- pair[1]
-  group2 <- pair[2]
-  
-  subset_clinical <- clinical[which(clinical$months == 0),]
-
-  # Subset data to omly include the 2 rgroups of interest
-  subset_clinical <- subset_clinical[subset_clinical$group %in% c(group1,group2),]
-  subset_counts <- counts_norm[, row.names(subset_clinical)]
-  
-  subset_clinical$group <- factor(subset_clinical$group, levels = c(group1, group2))
-  
-  # Mean-zscore
-# Get the gene IDs instead of HGNCs
-gene_set_list <- list(c("TAP1","GBP5","GBP2","FCGR1B"))
-
-  signature_geneid <- as.character(gene_annot[match(gene_set_list[[1]], gene_annot$GENE_SYMBOL), "REFSEQ"])
-gene_set_list <- c(signature_geneid)
-
-# For each sample, get the mean standardized expression of genes in the 4-gene signature
-
-gene_set <- subset_counts[gene_set_list,]
-gene_set <- t(gene_set) #genes are columns so we can z-score column-wise (centre = centre each gene around its own mean)
-      # Gene-wise z-score = for each gene, how does this sample compare to all other samples for that gene, then average across our 7 genes
-      # This tells you if a sample has collectively high expression of your gene set relative to the cohort      
-gene_set_zscore<-scale(gene_set, center=T, scale=T)   # This results in a standardized dataset with mean = 0 and standard deviation = 1 (z-score transformation).
-      #take the mean of the scaled+centred data for each gene and use this as each sample's score
-      #each row is a sample and each column is a gene. we are taking the average ACROSS the columns so every sample gets 1 score
-mean_sig_zscore<- data.frame(rowMeans(gene_set_zscore))
-colnames(mean_sig_zscore) <- "score"
-
-all(row.names(mean_sig_zscore) == row.names(subset_clinical))
-
-  
-  glm_data <- data.frame(Score = mean_sig_zscore[,"score"], Group = subset_clinical$group)
-  
-  table(glm_data$Group)
-  
-  
-  glm_data$Group <- factor(glm_data$Group, levels = c(group1, group2))
-  glm_model <- glm(Group ~ Score, data = glm_data, family = binomial) 
-  
-  test_probs <- predict(glm_model, type = "response")
-  
-  roc_obj <- roc(glm_data$Group, test_probs)
-  
-  plot(roc_obj)
-  auc(roc_obj)
-  auc_ci <- ci.auc(roc_obj)
-  
-  #  The "optimal threshold" refers to the point on the ROC curve where you achieve the best balance between sensitivity and specificity, or where the classifier is most effective at distinguishing between the positive and negative classes.
-  optimal_threshold_coords <- coords(roc_obj, "best", ret = c("threshold", "sensitivity", "specificity", best.method = "youden"))
-  
-  
-  if(nrow(optimal_threshold_coords) > 1) {
-    optimal_threshold_coords <- optimal_threshold_coords[1,] # some output have 2 equally optimal thresholds = same AUC. just keep  first one as results are the same
-  }
-  
-  
-
-  # Sensitivity confidence interval (at optimal specificity)
-  ci_sens <- ci.se(roc_obj, specificities =  as.numeric(optimal_threshold_coords["specificity"])) 
-  
-  # Specificity confidence interval (at optimal sensitivity)
-  ci_spec <- ci.sp(roc_obj, sensitivities =  as.numeric(optimal_threshold_coords["sensitivity"]))
-  
-  res_current <-cbind(
-    comparison = paste0(group1,"vs",group2),
-    samples_group1 = paste(group1, "=", sum(glm_data$Group == group1)),
-    samples_group2 = paste(group2, "=", sum(glm_data$Group == group2)),
-    auc = auc(roc_obj),
-    ci = paste0(round(as.numeric(auc_ci[1]),2), "-", round(as.numeric(auc_ci[3]),2)),
-    sensitivity = optimal_threshold_coords$sensitivity, 
-    specificity = optimal_threshold_coords$specificity
-    
-  )
-  
-  res_table <- rbind(res_table, res_current)
-  
-  forestplot_res_table <- rbind(forestplot_res_table, 
-                                cbind(comparison = paste0(group1,"vs",group2),
-                                      auc = auc(roc_obj),
-                                      auc_ci_low = as.numeric(auc_ci[1]),
-                                      auc_ci_high = as.numeric(auc_ci[3]),
-                                      
-                                      sensitivity = optimal_threshold_coords$sensitivity, 
-                                      sensitivity_ci_low = ci_sens[, "2.5%"],
-                                      sensitivity_ci_high = ci_sens[, "97.5%"],
-                                      
-                                      specificity = optimal_threshold_coords$specificity,
-                                      specificity_ci_low = ci_spec[, "2.5%"],
-                                      specificity_ci_high = ci_spec[, "97.5%"])
-  )
-  
-  roc_objects[[paste0(group1,"vs",group2)]] <- roc_obj
-  
-} # close pair
-  
 write.csv(res_table, file.path(this.accession.res.dir, paste0(this.accession.no,"_res_table_", outcome, ".csv")))
 write.csv(forestplot_res_table, file.path(this.accession.res.dir, paste0(this.accession.no,"_mean_ztransformed_scores_forestplot_res_table_", outcome, ".csv")))
 
 
 
-# 5) ROC Curves & Forest plot-----------------------------------------------------------
-
-# Convert ROC data to a format suitable for ggplot
-roc_data <- do.call(rbind, lapply(names(roc_objects), function(comparison) {
-  data.frame(
-    TPR = rev(roc_objects[[comparison]]$sensitivities),  # True Positive Rate
-    FPR = rev(1 - roc_objects[[comparison]]$specificities),  # False Positive Rate
-    Comparison = comparison,
-    auc = rev(roc_objects[[comparison]]$auc)
-  )
-}))
-
-roc_data$Comparison <- factor(roc_data$Comparison, levels = comparison_levels)
-
-roc_data$Comparison_plotlabel <- roc_data$Comparison
-levels(roc_data$Comparison_plotlabel) <-  comparison_plotlabel_levels
-
-roc_data$ci <- res_table[match(roc_data$Comparison, res_table$comparison), "ci"]
-
-roc_data$legend <- paste0(roc_data$Comparison_plotlabel,": \n AUC = ", 
-                          round(roc_data$auc, 2), " (", roc_data$ci, ")")
 
 
 
-# Disease plot
-disease_roc_data <- roc_data
 
-disease_roc <- ggplot(disease_roc_data, aes(x = FPR, y = TPR, color = legend)) +
-  geom_line(size = 1.2) +
-  theme_bw() +
-  geom_abline(slope = 1, intercept = 0, linetype = "dashed", color = "black")  +
-  guides(colour = guide_legend(nrow = disease_legend_nrow)) +
-  theme(legend.position = "bottom",
-        legend.title = element_blank(),
-        axis.title = element_text(size = 24),
-        axis.text = element_text(size = 24),
-        legend.text = element_text(size = 16),
-        title = element_text(size = 20)) +
+# Create a list to store AUC values and roc objects
+roc_plot_width = 3200
+roc_plot_height = 3500
 
-  labs(
+
+# disease plot
+disease_roc <- disease_roc_plot_func(legend_nrow = 1)
+
+disease_roc <- disease_roc +   labs(
     title = paste0("ROC - Control vs TB", " (", outcome, ")"),
     x = "FPR (1 - Specificity)",
     y = "TPR (Sensitivity)",
     color = "Comparison",
        caption = paste0("Signature:TAP1, GBP5, GBP2, FCGR1B", "\n", 
                         "Note: FCGR1CP was not annotated in GPL13497; FCGR1B was used as a proxy"))
-    
+  
+  
     
 ggsave(disease_roc, filename = file.path(this.figure.dir, paste0("disease_roc_", outcome,".png")), 
        width = roc_plot_width, 
        height = roc_plot_height, 
        units = "px")
 
-## Forest plot -------
-res_table <- forestplot_res_table
-  
-res_table$comparison <- factor(res_table$comparison, levels = comparison_levels)
-  
-res_table[,-1] <- lapply(res_table[,-1], as.numeric)
 
-
-forestplot_theme <- theme(axis.title = element_text(size =  16),
-                            axis.text = element_text(size = 14),
-                            legend.position = "None") 
-
-
-auc_plot <- res_table %>% 
-    ggplot(aes(y = comparison)) + 
-    theme_bw() +
-    geom_point(aes(x=auc, color = comparison), shape=15, size=3) +
-    geom_linerange(aes(xmin=auc_ci_low, 
-                       xmax=auc_ci_high, 
-                       color = comparison),
-                   size = 1) +
-          scale_y_discrete(labels = comparison_plotlabel_levels)+
-    forestplot_theme +
-    ylab(NULL)+
-    xlab("AUC")+
-    coord_cartesian( xlim=c(0.1, 1))
-
-
-  sens_plot <- res_table %>% 
-    ggplot(aes(y = comparison)) + 
-    theme_bw() +
-    geom_point(aes(x=sensitivity, color = comparison), shape=15, size=3) +
-    geom_linerange(aes(xmin=sensitivity_ci_low, 
-                       xmax=sensitivity_ci_high, 
-                       color = comparison),
-                   size = 1) +
-        scale_y_discrete(labels = comparison_plotlabel_levels)+
-    forestplot_theme +
-    ylab(NULL)+
-    xlab("Sensitivity")+
-    coord_cartesian( xlim=c(0.1, 1))
-  
-  spec_plot <- res_table %>% 
-    ggplot(aes(y = comparison)) + 
-    theme_bw() +
-    geom_point(aes(x=specificity, color = comparison), shape=15, size=3) +
-    geom_linerange(aes(xmin=specificity_ci_low, 
-                       xmax=specificity_ci_high, 
-                       color = comparison),
-                   size = 1) +
-        scale_y_discrete(labels = comparison_plotlabel_levels)+
-    forestplot_theme +
-    ylab(NULL)+
-    xlab("Specificity")+
-    coord_cartesian( xlim=c(0.1, 1))
-  
-  
-  panel_forest <- ggarrange(plotlist = list(auc_plot, sens_plot, spec_plot ),
-                            ncol = 1,
-                            nrow = 3)
-  
-  panel_forest <- annotate_figure(
+#forestplot
+panel_forest <- forestplot_func()
+panel_forest <- annotate_figure(
     panel_forest,
     top = text_grob(paste0(this.accession.no, " (", outcome, ")"), size = 14, hjust = 0, x = 0),
     bottom = text_grob(paste0("Senstivity and specificity calculated at Youden threshold \n",
                               "Signature:TAP1, GBP5, GBP2, FCGR1B", "\n", 
-                        "Note: FCGR1CP was not annotated in GPL13497; FCGR1B was used as a proxy"),
-                       size = 12, hjust = 0, x = 0)
-  )
-  
+                        "Note: FCGR1CP was not annotated in GPL13497; FCGR1B was \n used as a proxy"),
+                       size = 12, hjust = 0, x = 0))
     
-  ggsave(panel_forest, filename= file.path(this.figure.dir, paste0("forestplot_panel_", outcome,".png")),
+ggsave(panel_forest, filename= file.path(this.figure.dir, paste0("forestplot_panel_", outcome,".png")),
          width = 15, height = 20, units = "cm",   bg = "white"  )
 
-  
   
 
 # COMBINE GERMAN IDENTIFICATION + VALIDATIONS COHORTS) ----------------------------------------------------------------------------------------------------------------------------------------
@@ -2328,18 +1882,8 @@ if(length(signature_geneid) < 4){
 
 
 # For each sample, get the mean standardized expression of genes in the 4-gene signature
-
-gene_set <- german_counts[gene_set_list,]
-gene_set <- t(gene_set) #genes are columns so we can z-score column-wise (centre = centre each gene around its own mean)
-      # Gene-wise z-score = for each gene, how does this sample compare to all other samples for that gene, then average across our 7 genes
-      # This tells you if a sample has collectively high expression of your gene set relative to the cohort      
-gene_set_zscore<-scale(gene_set, center=T, scale=T)   # This results in a standardized dataset with mean = 0 and standard deviation = 1 (z-score transformation).
-      #take the mean of the scaled+centred data for each gene and use this as each sample's score
-      #each row is a sample and each column is a gene. we are taking the average ACROSS the columns so every sample gets 1 score
-mean_sig_zscore<- data.frame(rowMeans(gene_set_zscore))
-colnames(mean_sig_zscore) <- "score"
-
-if(all(row.names(mean_sig_zscore) != row.names(clinical))){ stop("Row names do not match", this.accession.no)}
+counts_norm <- german_counts
+mean_sig_zscore <- mean_zscore_func()
 
 
 ## 3.1) Boxplot ---------------------------
@@ -2431,22 +1975,33 @@ pairwise_comparisons <- list(
 
 # Define for plotting
 comparison_levels <- c(
-  "HealthyvsMDR_TB",
-  "HealthyvsDS_TB",
-  "DS_TBvsMDR_TB"
-)
-
-
-comparison_plotlabel_levels <- c(
   "Healthy vs MDR_TB",
   "Healthy vs DS_TB",
   "DS_TB vs MDR_TB"
 )
 
 
+comparison_plotlabel_levels <- comparison_levels
+
+
 #Make roc function
 this.figure.dir <- file.path(this.accession.res.dir, "figures", "roc")
 if(!exists(this.figure.dir)) dir.create(this.figure.dir)
+
+
+#Only get T0 and Healthy
+clinical_treat <- german_clinical[which(german_clinical$months == 0),]
+
+roc_func_res <- roc_func(outcome = outcome)
+res_table <- roc_func_res$res_table
+forestplot_res_table <- roc_func_res$forestplot_res_table
+
+write.csv(res_table, file.path(this.accession.res.dir, paste0(this.accession.no,"_res_table_", outcome, ".csv")))
+write.csv(forestplot_res_table, file.path(this.accession.res.dir, paste0(this.accession.no,"_mean_ztransformed_scores_forestplot_res_table_", outcome, ".csv")))
+
+
+
+
 
 # Create a list to store AUC values and roc objects
 res_table <- data.frame()
@@ -2457,250 +2012,41 @@ disease_legend_nrow = 2
 roc_plot_width = 3200
 roc_plot_height = 3500
 
-# Loop through each pairwise comparison
-for (pair in pairwise_comparisons) {
-  
-  group1 <- pair[1]
-  group2 <- pair[2]
-  
-  subset_clinical <- german_clinical[which(german_clinical$months == 0),]
-  
-  # Subset data to omly include the 2 rgroups of interest
-  subset_clinical <- subset_clinical[subset_clinical$group %in% c(group1,group2),]
-  subset_counts <- german_counts[, row.names(subset_clinical)]
-  
-  subset_clinical$group <- factor(subset_clinical$group, levels = c(group1, group2))
-  
-## 3) Mean of z-scored expression ---------------------------
-gene_set_list <- list(c("TAP1","GBP5","GBP2","FCGR1B"))
-
-# Get the gene IDs instead of HGNCs
-signature_geneid <- as.character(gene_annot[match(gene_set_list[[1]], gene_annot$GENE_SYMBOL), "REFSEQ"])
-signature_geneid %in% row.names(subset_counts)
-gene_set_list <- c(signature_geneid)
-#CANNOT FIND FCGR1C OR ITS ALIASES
-
-if(length(signature_geneid) < 4){ 
-  print("Missing gene in signature after genone_annot conversion")
-  stop() }
-
-
-# For each sample, get the mean standardized expression of genes in the 4-gene signature
-
-gene_set <- subset_counts[gene_set_list,]
-gene_set <- t(gene_set) #genes are columns so we can z-score column-wise (centre = centre each gene around its own mean)
-      # Gene-wise z-score = for each gene, how does this sample compare to all other samples for that gene, then average across our 7 genes
-      # This tells you if a sample has collectively high expression of your gene set relative to the cohort      
-gene_set_zscore<-scale(gene_set, center=T, scale=T)   # This results in a standardized dataset with mean = 0 and standard deviation = 1 (z-score transformation).
-      #take the mean of the scaled+centred data for each gene and use this as each sample's score
-      #each row is a sample and each column is a gene. we are taking the average ACROSS the columns so every sample gets 1 score
-mean_sig_zscore<- data.frame(rowMeans(gene_set_zscore))
-colnames(mean_sig_zscore) <- "score"
-
-
-
-all(row.names(mean_sig_zscore) == row.names(subset_clinical))
-
-  
-  glm_data <- data.frame(Score = mean_sig_zscore[,"score"], Group = subset_clinical$group)
-  
-  table(glm_data$Group)
   
   
-  glm_data$Group <- factor(glm_data$Group, levels = c(group1, group2))
-  glm_model <- glm(Group ~ Score, data = glm_data, family = binomial) 
   
-  test_probs <- predict(glm_model, type = "response")
-  
-  roc_obj <- roc(glm_data$Group, test_probs)
-  
-  plot(roc_obj)
-  auc(roc_obj)
-  auc_ci <- ci.auc(roc_obj)
-  
-  #  The "optimal threshold" refers to the point on the ROC curve where you achieve the best balance between sensitivity and specificity, or where the classifier is most effective at distinguishing between the positive and negative classes.
-  optimal_threshold_coords <- coords(roc_obj, "best", ret = c("threshold", "sensitivity", "specificity", best.method = "youden"))
-  
-  
-  if(nrow(optimal_threshold_coords) > 1) {
-    optimal_threshold_coords <- optimal_threshold_coords[1,] # some output have 2 equally optimal thresholds = same AUC. just keep  first one as results are the same
-  }
-  
-  
+# disease plot
+disease_roc <- disease_roc_plot_func(legend_nrow = 1)
 
-  # Sensitivity confidence interval (at optimal specificity)
-  ci_sens <- ci.se(roc_obj, specificities =  as.numeric(optimal_threshold_coords["specificity"])) 
-  
-  # Specificity confidence interval (at optimal sensitivity)
-  ci_spec <- ci.sp(roc_obj, sensitivities =  as.numeric(optimal_threshold_coords["sensitivity"]))
-  
-  res_current <-cbind(
-    comparison = paste0(group1,"vs",group2),
-    samples_group1 = paste(group1, "=", sum(glm_data$Group == group1)),
-    samples_group2 = paste(group2, "=", sum(glm_data$Group == group2)),
-    auc = auc(roc_obj),
-    ci = paste0(round(as.numeric(auc_ci[1]),2), "-", round(as.numeric(auc_ci[3]),2)),
-    sensitivity = optimal_threshold_coords$sensitivity, 
-    specificity = optimal_threshold_coords$specificity
-    
-  )
-  
-  res_table <- rbind(res_table, res_current)
-  
-  forestplot_res_table <- rbind(forestplot_res_table, 
-                                cbind(comparison = paste0(group1,"vs",group2),
-                                      auc = auc(roc_obj),
-                                      auc_ci_low = as.numeric(auc_ci[1]),
-                                      auc_ci_high = as.numeric(auc_ci[3]),
-                                      
-                                      sensitivity = optimal_threshold_coords$sensitivity, 
-                                      sensitivity_ci_low = ci_sens[, "2.5%"],
-                                      sensitivity_ci_high = ci_sens[, "97.5%"],
-                                      
-                                      specificity = optimal_threshold_coords$specificity,
-                                      specificity_ci_low = ci_spec[, "2.5%"],
-                                      specificity_ci_high = ci_spec[, "97.5%"])
-  )
-  
-  roc_objects[[paste0(group1,"vs",group2)]] <- roc_obj
-  
-} # close pair
-  
-write.csv(res_table, file.path(this.accession.res.dir, paste0(this.accession.no,"_res_table_", outcome, ".csv")))
-write.csv(forestplot_res_table, file.path(this.accession.res.dir, paste0(this.accession.no,"_mean_ztransformed_scores_forestplot_res_table_", outcome, ".csv")))
-
-
-
-# 5) ROC Curves & Forest plot-----------------------------------------------------------
-
-# Convert ROC data to a format suitable for ggplot
-roc_data <- do.call(rbind, lapply(names(roc_objects), function(comparison) {
-  data.frame(
-    TPR = rev(roc_objects[[comparison]]$sensitivities),  # True Positive Rate
-    FPR = rev(1 - roc_objects[[comparison]]$specificities),  # False Positive Rate
-    Comparison = comparison,
-    auc = rev(roc_objects[[comparison]]$auc)
-  )
-}))
-
-roc_data$Comparison <- factor(roc_data$Comparison, levels = comparison_levels)
-
-roc_data$Comparison_plotlabel <- roc_data$Comparison
-
-roc_data$ci <- res_table[match(roc_data$Comparison, res_table$comparison), "ci"]
-
-roc_data$legend <- paste0(roc_data$Comparison_plotlabel,": \n AUC = ", 
-                          round(roc_data$auc, 2), " (", roc_data$ci, ")")
-
-
-
-
-# Disease plot
-disease_roc_data <- roc_data
-
-disease_roc <- ggplot(disease_roc_data, aes(x = FPR, y = TPR, color = legend)) +
-  geom_line(size = 1.2) +
-  theme_bw() +
-  geom_abline(slope = 1, intercept = 0, linetype = "dashed", color = "black")  +
-  guides(colour = guide_legend(nrow = disease_legend_nrow)) +
-  theme(legend.position = "bottom",
-        legend.title = element_blank(),
-        axis.title = element_text(size = 24),
-        axis.text = element_text(size = 24),
-        legend.text = element_text(size = 16),
-        title = element_text(size = 20)) +
-
-  labs(
+disease_roc <- disease_roc +   labs(
     title = paste0("ROC - Control vs TB", " (", outcome, ")"),
     x = "FPR (1 - Specificity)",
     y = "TPR (Sensitivity)",
     color = "Comparison",
        caption = paste0("Signature:TAP1, GBP5, GBP2, FCGR1B", "\n", 
                         "Note: FCGR1CP was not annotated in GPL13497; FCGR1B was used as a proxy"))
-    
+  
+  
     
 ggsave(disease_roc, filename = file.path(this.figure.dir, paste0("disease_roc_", outcome,".png")), 
        width = roc_plot_width, 
        height = roc_plot_height, 
        units = "px")
 
-## Forest plot -------
-res_table <- forestplot_res_table
-  
-res_table$comparison <- factor(res_table$comparison, levels = comparison_levels)
-  
-res_table[,-1] <- lapply(res_table[,-1], as.numeric)
 
-
-forestplot_theme <- theme(axis.title = element_text(size =  16),
-                            axis.text = element_text(size = 14),
-                            legend.position = "None") 
-
-
-auc_plot <- res_table %>% 
-    ggplot(aes(y = comparison)) + 
-    theme_bw() +
-    geom_point(aes(x=auc, color = comparison), shape=15, size=3) +
-    geom_linerange(aes(xmin=auc_ci_low, 
-                       xmax=auc_ci_high, 
-                       color = comparison),
-                   size = 1) +
-          scale_y_discrete(labels = comparison_plotlabel_levels)+
-    forestplot_theme +
-    ylab(NULL)+
-    xlab("AUC")+
-    coord_cartesian( xlim=c(0.1, 1))
-
-
-  sens_plot <- res_table %>% 
-    ggplot(aes(y = comparison)) + 
-    theme_bw() +
-    geom_point(aes(x=sensitivity, color = comparison), shape=15, size=3) +
-    geom_linerange(aes(xmin=sensitivity_ci_low, 
-                       xmax=sensitivity_ci_high, 
-                       color = comparison),
-                   size = 1) +
-        scale_y_discrete(labels = comparison_plotlabel_levels)+
-    forestplot_theme +
-    ylab(NULL)+
-    xlab("Sensitivity")+
-    coord_cartesian( xlim=c(0.1, 1))
-  
-  spec_plot <- res_table %>% 
-    ggplot(aes(y = comparison)) + 
-    theme_bw() +
-    geom_point(aes(x=specificity, color = comparison), shape=15, size=3) +
-    geom_linerange(aes(xmin=specificity_ci_low, 
-                       xmax=specificity_ci_high, 
-                       color = comparison),
-                   size = 1) +
-        scale_y_discrete(labels = comparison_plotlabel_levels)+
-    forestplot_theme +
-    ylab(NULL)+
-    xlab("Specificity")+
-    coord_cartesian( xlim=c(0.1, 1))
-  
-  
-  panel_forest <- ggarrange(plotlist = list(auc_plot, sens_plot, spec_plot ),
-                            ncol = 1,
-                            nrow = 3)
-  
-  panel_forest <- annotate_figure(
+#forestplot
+panel_forest <- forestplot_func()
+panel_forest <- annotate_figure(
     panel_forest,
     top = text_grob(paste0(this.accession.no, " (", outcome, ")"), size = 14, hjust = 0, x = 0),
     bottom = text_grob(paste0("Senstivity and specificity calculated at Youden threshold \n",
                               "Signature:TAP1, GBP5, GBP2, FCGR1B", "\n", 
-                        "Note: FCGR1CP was not annotated in GPL13497; FCGR1B was used as a proxy"),
-                       size = 12, hjust = 0, x = 0)
-  )
-  
+                        "Note: FCGR1CP was not annotated in GPL13497; FCGR1B was \n used as a proxy"),
+                       size = 12, hjust = 0, x = 0))
     
-  ggsave(panel_forest, filename= file.path(this.figure.dir, paste0("forestplot_panel_", outcome,".png")),
+ggsave(panel_forest, filename= file.path(this.figure.dir, paste0("forestplot_panel_", outcome,".png")),
          width = 15, height = 20, units = "cm",   bg = "white"  )
 
-  
-  
-  
   
   
   
@@ -3264,18 +2610,7 @@ if(length(signature_geneid) < 4){
   stop() }
 
 # For each sample, get the mean standardized expression of genes in the 4-gene signature
-
-gene_set <- counts_norm[gene_set_list,]
-gene_set <- t(gene_set) #genes are columns so we can z-score column-wise (centre = centre each gene around its own mean)
-      # Gene-wise z-score = for each gene, how does this sample compare to all other samples for that gene, then average across our 7 genes
-      # This tells you if a sample has collectively high expression of your gene set relative to the cohort      
-gene_set_zscore<-scale(gene_set, center=T, scale=T)   # This results in a standardized dataset with mean = 0 and standard deviation = 1 (z-score transformation).
-      #take the mean of the scaled+centred data for each gene and use this as each sample's score
-      #each row is a sample and each column is a gene. we are taking the average ACROSS the columns so every sample gets 1 score
-mean_sig_zscore<- data.frame(rowMeans(gene_set_zscore))
-colnames(mean_sig_zscore) <- "score"
-
-if(all(row.names(mean_sig_zscore) != row.names(clinical))){ stop("Row names do not match", this.accession.no)}
+mean_sig_zscore <- mean_zscore_func()
 
 ## 3.1) Boxplot ---------------------------
 this.figure.dir <- file.path(this.accession.res.dir, "figures", "boxplot")
@@ -3290,73 +2625,34 @@ boxplot_theme <- theme(axis.title = element_text(size = 24),
                     legend.position = "None") 
 
 
-my_comparisons <- combn(unique(clinical$group), 2, simplify = FALSE)
+# my_comparisons <- combn(unique(clinical$group), 2, simplify = FALSE)
 
 
 x_order <- c("0", "14 Days", "28 Days", "6 Mths",  "10 Mths",  "15 Mths",  "20 Mths")
 
 boxplot_all$group <- factor(boxplot_all$group, levels = x_order)
 boxplot_all$score <- as.numeric(boxplot_all$score)
-
-# calculate p values
-stat.table<- boxplot_all  %>%
-  wilcox_test(score ~ group,
-              paired = FALSE) %>%
-  add_xy_position(x = "group")
-
-stat.table <- stat.table[which(stat.table$p < 0.05),]
-lowest_bracket <- max(boxplot_all$score) + 0.05*(max(boxplot_all$score))
-stat.table$y.position <- seq(lowest_bracket, by= 0.25, length.out = nrow(stat.table))
-
 outcome = "TB"
-boxplotfig <- ggplot(boxplot_all, aes(
-  x = factor(group, level = x_order),
-  y = as.numeric(boxplot_all[,1]),
-  group = group)) +
-  
-  theme_bw()+
-  
-  boxplot_theme +
-  
-  geom_boxplot(position = position_dodge(1)) +
-  
-  geom_jitter(aes(color = group),
-              alpha = 0.5,
-              size = 2.5, 
-              width = 0.3) +
-  
-  {if(nrow(stat.table) >0 )
-    stat_pvalue_manual(stat.table,
-                       label = "p",
-                       tip.length = 0.01,
-                       vjust = 0.35,
-                       size = 5)
-  } + 
-  # scale_y_continuous(expand = c(0.07, 0, 0.07, 0)) +
-  stat_summary(fun = mean, fill = "red",
-               geom = "point", shape = 21, size =4,
-               show.legend = TRUE) +
-  
-  theme(axis.text.x = element_text(size = 18))+
+boxplot <- boxplot_all
+
+
+    boxplotfig <- boxplot_func(outcome = outcome)
+    boxplotfig <- boxplotfig +   
   labs(title = paste0("Signature Analysis: ", this.accession.no, " (", outcome, ")"),
        color = "Disease", #legend title
        caption = paste0("Signature:TAP1, GBP5, GBP2, FCGR1B", "\n", 
                         "Note: FCGR1CP was not annotated in GPL13497; FCGR1B was used as a proxy", "\n",
                         "n=", nrow(boxplot_all),"\n",
        "Signature scores calculated as mean of z-scored expression of signature genes\n",
-       "Normalised expression data was obtained from the original study: 'Data has been log-transformed and\nnormalized (percentile shift) within the Agilent GeneSpring V13 software'","\n",
-       "Curve generated using loess method (non-parametric local regression)"
-)) +
-  ylab (label = "Signature Score") +
-  xlab (label = "Disease")
-
-ggsave(boxplotfig, filename = file.path(this.figure.dir, paste0("meanzscore_plot_", this.accession.no, ".png")),
+       "Normalised expression data was obtained from the original study: 'Data has been log-transformed and\nnormalized (percentile shift) within the Agilent GeneSpring V13 software'"
+))
+    
+    ggsave(boxplotfig, filename = file.path(this.figure.dir, paste0("meanzscore_plot_", this.accession.no, ".png")),
        width = 3600, 
        height = 3600, 
        units = "px" )
 
-
-
+    
 
 
 
@@ -3375,260 +2671,65 @@ pairwise_comparisons <- list(
   c("28 Days", "6 Mths")
 )
 
-#Make roc function
+comparison_levels <- sapply(pairwise_comparisons, function(x) {
+  paste(x[1], x[2], sep = " vs ")
+})
+
+comparison_plotlabel_levels <- comparison_levels
+
+# Run roc function
 this.figure.dir <- file.path(this.accession.res.dir, "figures", "roc")
-if(!exists(this.figure.dir)) dir.create(this.figure.dir)
+if(!exists(this.figure.dir)) dir.create(this.figure.dir, recursive = TRUE)
 
-# Create a list to store AUC values and roc objects
-res_table <- data.frame()
-roc_objects <- list()
-forestplot_res_table <- data.frame()
+clinical_treat <- clinical
 
-# Loop through each pairwise comparison
-for (pair in pairwise_comparisons) {
-  
-  group1 <- pair[1]
-  group2 <- pair[2]
-  
-  # Subset data to omly include the 2 rgroups of interest
-  subset_clinical <- clinical[clinical$group %in% c(group1,group2),]
-  subset_counts <- counts_norm[, row.names(subset_clinical)]
-  
-  subset_clinical$group <- factor(subset_clinical$group, levels = c(group1, group2))
-  
-  
-  
-## 3) Mean of z-scored expression ---------------------------
-gene_set_list <- list(c("TAP1","GBP5","GBP2","FCGR1B"))
+roc_func_res <- roc_func(outcome = outcome)
+res_table <- roc_func_res$res_table
+forestplot_res_table <- roc_func_res$forestplot_res_table
 
-# Get the gene IDs instead of HGNCs
-signature_geneid <- as.character(gene_annot[match(gene_set_list[[1]], gene_annot$GENE_SYMBOL), "REFSEQ"])
-signature_geneid %in% row.names(subset_counts)
-gene_set_list <- c(signature_geneid)
-#CANNOT FIND FCGR1C OR ITS ALIASES
-
-if(length(signature_geneid) < 4){ 
-  print("Missing gene in signature after genone_annot conversion")
-  stop() }
-
-
-# For each sample, get the mean standardized expression of genes in the 4-gene signature
-
-gene_set <- subset_counts[gene_set_list,]
-gene_set <- t(gene_set) #genes are columns so we can z-score column-wise (centre = centre each gene around its own mean)
-      # Gene-wise z-score = for each gene, how does this sample compare to all other samples for that gene, then average across our 7 genes
-      # This tells you if a sample has collectively high expression of your gene set relative to the cohort      
-gene_set_zscore<-scale(gene_set, center=T, scale=T)   # This results in a standardized dataset with mean = 0 and standard deviation = 1 (z-score transformation).
-      #take the mean of the scaled+centred data for each gene and use this as each sample's score
-      #each row is a sample and each column is a gene. we are taking the average ACROSS the columns so every sample gets 1 score
-mean_sig_zscore<- data.frame(rowMeans(gene_set_zscore))
-colnames(mean_sig_zscore) <- "score"
-
-
-
-all(row.names(mean_sig_zscore) == row.names(subset_clinical))
-
-  
-  
-
-  glm_data <- data.frame(Score = mean_sig_zscore[,"score"], Group = subset_clinical$group)
-  
-  table(glm_data$Group)
-  
-  
-  glm_data$Group <- factor(glm_data$Group, levels = c(group1, group2))
-  glm_model <- glm(Group ~ Score, data = glm_data, family = binomial) 
-  
-  test_probs <- predict(glm_model, type = "response")
-  
-  roc_obj <- roc(glm_data$Group, test_probs)
-  
-  plot(roc_obj)
-  auc(roc_obj)
-  auc_ci <- ci.auc(roc_obj)
-  
-  #  The "optimal threshold" refers to the point on the ROC curve where you achieve the best balance between sensitivity and specificity, or where the classifier is most effective at distinguishing between the positive and negative classes.
-  optimal_threshold_coords <- coords(roc_obj, "best", ret = c("threshold", "sensitivity", "specificity", best.method = "youden"))
-  
-  
-  if(nrow(optimal_threshold_coords) > 1) {
-    optimal_threshold_coords <- optimal_threshold_coords[1,] # some output have 2 equally optimal thresholds = same AUC. just keep  first one as results are the same
-  }
-  
-  
-
-  # Sensitivity confidence interval (at optimal specificity)
-  ci_sens <- ci.se(roc_obj, specificities =  as.numeric(optimal_threshold_coords["specificity"])) 
-  
-  # Specificity confidence interval (at optimal sensitivity)
-  ci_spec <- ci.sp(roc_obj, sensitivities =  as.numeric(optimal_threshold_coords["sensitivity"]))
-  
-
-  res_current <-cbind(
-    comparison = paste0(group1," vs ",group2),
-    samples_group1 = paste(group1, "=", sum(glm_data$Group == group1)),
-    samples_group2 = paste(group2, "=", sum(glm_data$Group == group2)),
-    auc = auc(roc_obj),
-    ci = paste0(round(as.numeric(auc_ci[1]),2), "-", round(as.numeric(auc_ci[3]),2)),
-    sensitivity = optimal_threshold_coords$sensitivity, 
-    specificity = optimal_threshold_coords$specificity
-    
-  )
-  
-  res_table <- rbind(res_table, res_current)
-  
-  forestplot_res_table <- rbind(forestplot_res_table, 
-                                cbind(comparison = paste0(group1," vs ",group2),
-                                      auc = auc(roc_obj),
-                                      auc_ci_low = as.numeric(auc_ci[1]),
-                                      auc_ci_high = as.numeric(auc_ci[3]),
-                                      
-                                      sensitivity = optimal_threshold_coords$sensitivity, 
-                                      sensitivity_ci_low = ci_sens[, "2.5%"],
-                                      sensitivity_ci_high = ci_sens[, "97.5%"],
-                                      
-                                      specificity = optimal_threshold_coords$specificity,
-                                      specificity_ci_low = ci_spec[, "2.5%"],
-                                      specificity_ci_high = ci_spec[, "97.5%"])
-  )
-  
-  roc_objects[[paste0(group1," vs ",group2)]] <- roc_obj
-  
-} # close pair
-  
 write.csv(res_table, file.path(this.accession.res.dir, paste0(this.accession.no,"_res_table_", outcome, ".csv")))
 write.csv(forestplot_res_table, file.path(this.accession.res.dir, paste0(this.accession.no,"_mean_ztransformed_scores_forestplot_res_table_", outcome, ".csv")))
 
 
-# 5) ROC Curves & Forest plot-----------------------------------------------------------
+  
 
-# Convert ROC data to a format suitable for ggplot
-roc_data <- do.call(rbind, lapply(names(roc_objects), function(comparison) {
-  data.frame(
-    TPR = rev(roc_objects[[comparison]]$sensitivities),  # True Positive Rate
-    FPR = rev(1 - roc_objects[[comparison]]$specificities),  # False Positive Rate
-    Comparison = comparison,
-    auc = rev(roc_objects[[comparison]]$auc)
-  )
-}))
+roc_plot_width = 3200
+roc_plot_height = 3500
+  
+timepoint_roc_subset <- comparison_plotlabel_levels
 
-roc_data$Comparison <- factor(roc_data$Comparison)
-
-roc_data$Comparison_plotlabel <- roc_data$Comparison
-
-roc_data$ci <- res_table[match(roc_data$Comparison, res_table$comparison), "ci"]
-
-roc_data$legend <- paste0(roc_data$Comparison_plotlabel,": \n AUC = ", 
-                          round(roc_data$auc, 2), " (", roc_data$ci, ")")
-
-
-
-# Timepoint ROC
-timepoint_roc_data <- roc_data
-
-timepoint_roc <- ggplot(timepoint_roc_data, aes(x = FPR, y = TPR, color = legend)) +
-  geom_line(size = 1.2) +
-  theme_bw() +
-  geom_abline(slope = 1, intercept = 0, linetype = "dashed", color = "black")  +
-  guides(colour = guide_legend(nrow = 3)) +
-  theme(legend.position = "bottom",
-        legend.title = element_blank(),
-        axis.title = element_text(size = 24),
-        axis.text = element_text(size = 24),
-        legend.text = element_text(size = 16),
-        title = element_text(size = 20)) +
-  labs(
-    title = "ROC - TB treatment timepoints",
+timepoint_roc <- timepoint_roc_plot_func(legend_nrow = 3)
+timepoint_roc <- timepoint_roc +   labs(
+    title = paste0("ROC - TB treatment timepoints", " (", outcome, ")"),
     x = "FPR (1 - Specificity)",
-    y = "TPR(Sensitivity)",
+    y = "TPR (Sensitivity)",
     color = "Comparison",
        caption = paste0("Signature:TAP1, GBP5, GBP2, FCGR1B", "\n", 
                         "Note: FCGR1CP was not annotated in GPL13497; FCGR1B was used as a proxy"))
-
-
+  
+  
+    
 ggsave(timepoint_roc, filename = file.path(this.figure.dir, paste0("timepoint_roc_", outcome,".png")), 
-       width = 3200, 
-       height = 3500, 
+       width = roc_plot_width, 
+       height = roc_plot_height, 
        units = "px")
 
 
-
-## Forest plot -------
-res_table <- forestplot_res_tablexx
-  
-res_table$comparison <- factor(res_table$comparison)
-  
-res_table[,-1] <- lapply(res_table[,-1], as.numeric)
-
-
-forestplot_theme <- theme(axis.title = element_text(size =  16),
-                            axis.text = element_text(size = 14),
-                            legend.position = "None") 
-
-
-auc_plot <- res_table %>% 
-    ggplot(aes(y = comparison)) + 
-    theme_bw() +
-    geom_point(aes(x=auc, color = comparison), shape=15, size=3) +
-    geom_linerange(aes(xmin=auc_ci_low, 
-                       xmax=auc_ci_high, 
-                       color = comparison),
-                   size = 1) +
-          # scale_y_discrete(labels = comparison_plotlabel_levels)+
-    forestplot_theme +
-    ylab(NULL)+
-    xlab("AUC")+
-    coord_cartesian( xlim=c(0.1, 1))
-
-
-  sens_plot <- res_table %>% 
-    ggplot(aes(y = comparison)) + 
-    theme_bw() +
-    geom_point(aes(x=sensitivity, color = comparison), shape=15, size=3) +
-    geom_linerange(aes(xmin=sensitivity_ci_low, 
-                       xmax=sensitivity_ci_high, 
-                       color = comparison),
-                   size = 1) +
-        # scale_y_discrete(labels = comparison_plotlabel_levels)+
-    forestplot_theme +
-    ylab(NULL)+
-    xlab("Sensitivity")+
-    coord_cartesian( xlim=c(0.1, 1))
-  
-  spec_plot <- res_table %>% 
-    ggplot(aes(y = comparison)) + 
-    theme_bw() +
-    geom_point(aes(x=specificity, color = comparison), shape=15, size=3) +
-    geom_linerange(aes(xmin=specificity_ci_low, 
-                       xmax=specificity_ci_high, 
-                       color = comparison),
-                   size = 1) +
-        # scale_y_discrete(labels = comparison_plotlabel_levels)+
-    forestplot_theme +
-    ylab(NULL)+
-    xlab("Specificity")+
-    coord_cartesian( xlim=c(0.1, 1))
-  
-  
-  panel_forest <- ggarrange(plotlist = list(auc_plot, sens_plot, spec_plot ),
-                            ncol = 1,
-                            nrow = 3)
-  
-  panel_forest <- annotate_figure(
+#forestplot
+panel_forest <- forestplot_func()
+panel_forest <- annotate_figure(
     panel_forest,
     top = text_grob(paste0(this.accession.no, " (", outcome, ")"), size = 14, hjust = 0, x = 0),
     bottom = text_grob(paste0("Senstivity and specificity calculated at Youden threshold \n",
                               "Signature:TAP1, GBP5, GBP2, FCGR1B", "\n", 
-                        "Note: FCGR1CP was not annotated in GPL13497; FCGR1B was used as a proxy"),
-                       size = 12, hjust = 0, x = 0)
-  )
-  
+                        "Note: FCGR1CP was not annotated in GPL13497; FCGR1B was \n used as a proxy"),
+                       size = 12, hjust = 0, x = 0))
     
-  ggsave(panel_forest, filename= file.path(this.figure.dir, paste0("forestplot_panel_", outcome,".png")),
+ggsave(panel_forest, filename= file.path(this.figure.dir, paste0("forestplot_panel_", outcome,".png")),
          width = 15, height = 20, units = "cm",   bg = "white"  )
 
   
-  
+
   
   
   
@@ -3745,10 +2846,8 @@ mean_sig_zscore <- mean_zscore_func() #Function already defined for previous gse
 
 
 ## 3.1) Boxplot ---------------------------
-outcome = "Lung Disease"
 boxplot_all <- as.data.frame(cbind(mean_zscore = mean_sig_zscore,
                                     group = clinical$group))
-
 
 boxplot_theme <- theme(axis.title = element_text(size = 24),
                     axis.text = element_text(size = 24),
@@ -3764,7 +2863,8 @@ this.figure.dir <- file.path(this.accession.res.dir, "figures", "boxplot")
 if(!exists(this.figure.dir)) dir.create(this.figure.dir, recursive = TRUE)
 
 boxplot <- boxplot_all
-boxplotfig <- boxplot_func(outcome = "TB") 
+outcome = "Lung Disease"
+boxplotfig <- boxplot_func(outcome = outcome) 
 
 
 boxplotfig <- boxplotfig +
@@ -3803,291 +2903,56 @@ comparison_levels <- c(
   "TB vs Pneumonia",
   "TB vs Sarcoidosis"
 )
-# 
-# 
-# comparison_plotlabel_levels <- c(
-#   "Control vs TB",
-#   "TB vs Lung cancer",
-#   "TB vs Pneumonia",
-#   "TB vs Sarcoidosis"
-# )
 
+comparison_plotlabel_levels <- comparison_levels
 
-disease_roc_subset <- comparison_levels
-timepoint_roc_subset <- NULL
+roc_func_res <- roc_func(outcome = outcome)
+res_table <- roc_func_res$res_table
+forestplot_res_table <- roc_func_res$forestplot_res_table
 
-
-disease_legend_nrow = 2
-timepoint_legend_nrow = NULL
-
-roc_plot_width = 3200
-roc_plot_height = 3500
-
-
-
-# Run roc function
-this.figure.dir <- file.path(this.accession.res.dir, "figures", "roc")
-if(!exists(this.figure.dir)) dir.create(this.figure.dir, recursive = TRUE)
-
-
-roc_func2 <- function(outcome){
-
-# Create a list to store AUC values and roc objects
-res_table <- data.frame()
-roc_objects <- list()
-forestplot_res_table <- data.frame()
-
-# Loop through each pairwise comparison
-for (pair in pairwise_comparisons) {
-  
-  group1 <- pair[1]
-  group2 <- pair[2]
-  
-  # Subset data to omly include the 2 rgroups of interest
-  subset_clinical <- clinical_treat[clinical_treat$group %in% c(group1,group2),]
-  subset_counts <- counts_norm[, row.names(subset_clinical)]
-  
-  subset_clinical$group <- factor(subset_clinical$group, levels = c(group1, group2))
-  
-# For each sample, get the mean standardized expression of genes in the 4-gene signature
-
-gene_set <- subset_counts[gene_set_list,]
-gene_set <- t(gene_set) #genes are columns so we can z-score column-wise (centre = centre each gene around its own mean)
-      # Gene-wise z-score = for each gene, how does this sample compare to all other samples for that gene, then average across our 7 genes
-      # This tells you if a sample has collectively high expression of your gene set relative to the cohort      
-gene_set_zscore<-scale(gene_set, center=T, scale=T)   # This results in a standardized dataset with mean = 0 and standard deviation = 1 (z-score transformation).
-      #take the mean of the scaled+centred data for each gene and use this as each sample's score
-      #each row is a sample and each column is a gene. we are taking the average ACROSS the columns so every sample gets 1 score
-mean_sig_zscore<- data.frame(rowMeans(gene_set_zscore))
-colnames(mean_sig_zscore) <- "score"
-
-all(row.names(mean_sig_zscore) == row.names(subset_clinical))
-
-  
-  glm_data <- data.frame(Score = mean_sig_zscore[,"score"], Group = subset_clinical$group)
-  
-  table(glm_data$Group)
-  
-  
-  glm_data$Group <- factor(glm_data$Group, levels = c(group1, group2))
-  glm_model <- glm(Group ~ Score, data = glm_data, family = binomial) 
-  
-  test_probs <- predict(glm_model, type = "response")
-  
-  roc_obj <- roc(glm_data$Group, test_probs)
-  
-  plot(roc_obj)
-  auc(roc_obj)
-  auc_ci <- ci.auc(roc_obj)  #default 95% CI is computed with 2000 stratified bootstrap replicates.
-  
-  #  The "optimal threshold" refers to the point on the ROC curve where you achieve the best balance between sensitivity and specificity, or where the classifier is most effective at distinguishing between the positive and negative classes.
-  optimal_threshold_coords <- coords(roc_obj, "best", ret = c("threshold", "sensitivity", "specificity", best.method = "youden"))
-  
-  if(nrow(optimal_threshold_coords) > 1) {
-    optimal_threshold_coords <- optimal_threshold_coords[1,] # some output have 2 equally optimal thresholds = same AUC. just keep  first one as results are the same
-  }
-  
-  
-  # Sensitivity confidence interval (at optimal specificity)
-  ci_sens <- ci.se(roc_obj, specificities =  as.numeric(optimal_threshold_coords["specificity"])) 
-  
-  # Specificity confidence interval (at optimal sensitivity)
-  ci_spec <- ci.sp(roc_obj, sensitivities =  as.numeric(optimal_threshold_coords["sensitivity"]))
-  
-  res_current <-cbind(
-    comparison = paste0(group1," vs ",group2),
-    samples_group1 = paste(group1, "=", sum(glm_data$Group == group1)),
-    samples_group2 = paste(group2, "=", sum(glm_data$Group == group2)),
-    auc = auc(roc_obj),
-    ci = paste0(round(as.numeric(auc_ci[1]),2), "-", round(as.numeric(auc_ci[3]),2)),
-    sensitivity = optimal_threshold_coords$sensitivity, 
-    specificity = optimal_threshold_coords$specificity
-    
-  )
-  
-  res_table <- rbind(res_table, res_current)
-  
-  forestplot_res_table <- rbind(forestplot_res_table, 
-                                cbind(comparison = paste0(group1," vs ",group2),
-                                      auc = auc(roc_obj),
-                                      auc_ci_low = as.numeric(auc_ci[1]),
-                                      auc_ci_high = as.numeric(auc_ci[3]),
-                                      
-                                      sensitivity = optimal_threshold_coords$sensitivity, 
-                                      sensitivity_ci_low = ci_sens[, "2.5%"],
-                                      sensitivity_ci_high = ci_sens[, "97.5%"],
-                                      
-                                      specificity = optimal_threshold_coords$specificity,
-                                      specificity_ci_low = ci_spec[, "2.5%"],
-                                      specificity_ci_high = ci_spec[, "97.5%"])
-  )
-  
-  roc_objects[[paste0(group1," vs ",group2)]] <- roc_obj
-  
-} # close pair
-  
-
-
-# saveRDS(roc_objects, file.path(this.accession.res.dir, paste0(this.accession.no,"_roc_objects_", outcome, ".rds")))
 write.csv(res_table, file.path(this.accession.res.dir, paste0(this.accession.no,"_res_table_", outcome, ".csv")))
 write.csv(forestplot_res_table, file.path(this.accession.res.dir, paste0(this.accession.no,"_mean_ztransformed_scores_forestplot_res_table_", outcome, ".csv")))
 
 
+disease_roc_subset <- comparison_plotlabel_levels
 
-# 5) ROC Curves & Forest plot-----------------------------------------------------------
+disease_legend_nrow = 2
 
-# Convert ROC data to a format suitable for ggplot
-roc_data <- do.call(rbind, lapply(names(roc_objects), function(comparison) {
-  data.frame(
-    TPR = rev(roc_objects[[comparison]]$sensitivities),  # True Positive Rate
-    FPR = rev(1 - roc_objects[[comparison]]$specificities),  # False Positive Rate
-    Comparison = comparison,
-    auc = rev(roc_objects[[comparison]]$auc)
-  )
-}))
+roc_plot_width = 3200
+roc_plot_height = 3500
 
-roc_data$Comparison <- factor(roc_data$Comparison, levels = comparison_levels)
-
-roc_data$Comparison_plotlabel <- roc_data$Comparison
-
-roc_data$ci <- res_table[match(roc_data$Comparison, res_table$comparison), "ci"]
-
-roc_data$legend <- paste0(roc_data$Comparison_plotlabel,": \n AUC = ", 
-                          round(roc_data$auc, 2), " (", roc_data$ci, ")")
-
-
-# Disease plot
-disease_roc_data <- roc_data[which(roc_data$Comparison_plotlabel %in% disease_roc_subset),]
-
-disease_roc <- ggplot(disease_roc_data, aes(x = FPR, y = TPR, color = legend)) +
-  geom_line(size = 1.2) +
-  theme_bw() +
-  geom_abline(slope = 1, intercept = 0, linetype = "dashed", color = "black")  +
-  guides(colour = guide_legend(nrow = disease_legend_nrow)) +
-  theme(legend.position = "bottom",
-        legend.title = element_blank(),
-        axis.title = element_text(size = 24),
-        axis.text = element_text(size = 24),
-        legend.text = element_text(size = 16),
-        title = element_text(size = 20)) +
-  labs(
+# disease plot
+disease_roc <- disease_roc_plot_func(legend_nrow = 2)
+disease_roc <- disease_roc +   labs(
     title = paste0("TB vs Other lung diseases", " (", outcome, ")"),
     x = "FPR (1 - Specificity)",
     y = "TPR (Sensitivity)",
     color = "Comparison",
     caption = "Signature:  TAP1, GBP5, GBP2, FCGR1CP") 
 
-if(nrow(disease_roc_data) >0 ){
+
 ggsave(disease_roc, filename = file.path(this.figure.dir, paste0("disease_roc_", outcome,".png")), 
        width = roc_plot_width, 
        height = roc_plot_height, 
        units = "px")
-}
-#Timepoint plot
-timepoint_roc_data <- roc_data[which(roc_data$Comparison_plotlabel %in% timepoint_roc_subset),]
 
-timepoint_roc <- ggplot(timepoint_roc_data, aes(x = FPR, y = TPR, color = legend)) +
-  geom_line(size = 1.2) +
-  theme_bw() +
-  geom_abline(slope = 1, intercept = 0, linetype = "dashed", color = "black")  +
-  guides(colour = guide_legend(nrow = timepoint_legend_nrow)) +
-  theme(legend.position = "bottom",
-        legend.title = element_blank(),
-        axis.title = element_text(size = 24),
-        axis.text = element_text(size = 24),
-        legend.text = element_text(size = 16),
-        title = element_text(size = 20)) +
-  labs(
-    title = paste0("TB vs Other lung diseases", " (", outcome, ")"),
-    x = "FPR (1 - Specificity)",
-    y = "TPR(Sensitivity)",
-    color = "Comparison",
-    caption = "Signature:TAP1, GBP5, GBP2, FCGR1CP")
-
-if(nrow(timepoint_roc_data) > 0){
-ggsave(timepoint_roc, filename = file.path(this.figure.dir, paste0("timepoint_roc_", outcome, ".png")), 
-       width = roc_plot_width, 
-       height = roc_plot_height, 
-       units = "px")
-}
-## Forest plot -------
-res_table <- forestplot_res_table
-  
-res_table$comparison <- factor(res_table$comparison, levels = comparison_levels)
-  
-res_table[,-1] <- lapply(res_table[,-1], as.numeric)
-
-
-forestplot_theme <- theme(axis.title = element_text(size =  16),
-                            axis.text = element_text(size = 14),
-                            legend.position = "None") 
-auc_plot <- res_table %>% 
-    ggplot(aes(y = comparison)) + 
-    theme_bw() +
-    geom_point(aes(x=auc, color = comparison), shape=15, size=3) +
-    geom_linerange(aes(xmin=auc_ci_low, 
-                       xmax=auc_ci_high, 
-                       color = comparison),
-                   size = 1) +
-    forestplot_theme +
-    scale_y_discrete(labels = comparison_plotlabel_levels)+
-    ylab(NULL)+
-    xlab("AUC")+
-    coord_cartesian( xlim=c(0.1, 1))
-
-
-  sens_plot <- res_table %>% 
-    ggplot(aes(y = comparison)) + 
-    theme_bw() +
-    geom_point(aes(x=sensitivity, color = comparison), shape=15, size=3) +
-    geom_linerange(aes(xmin=sensitivity_ci_low, 
-                       xmax=sensitivity_ci_high, 
-                       color = comparison),
-                   size = 1) +
-    forestplot_theme +
-    scale_y_discrete(labels = comparison_plotlabel_levels)+
-    ylab(NULL)+
-    xlab("Sensitivity")+
-    coord_cartesian( xlim=c(0.1, 1))
-  
-  spec_plot <- res_table %>% 
-    ggplot(aes(y = comparison)) + 
-    theme_bw() +
-    geom_point(aes(x=specificity, color = comparison), shape=15, size=3) +
-    geom_linerange(aes(xmin=specificity_ci_low, 
-                       xmax=specificity_ci_high, 
-                       color = comparison),
-                   size = 1) +
-    forestplot_theme +
-    scale_y_discrete(labels = comparison_plotlabel_levels)+
-    ylab(NULL)+
-    xlab("Specificity")+
-    coord_cartesian( xlim=c(0.1, 1))
-  
-  
-  panel_forest <- ggarrange(plotlist = list(auc_plot, sens_plot, spec_plot ),
-                            ncol = 1,
-                            nrow = 3)
-  
-  panel_forest <- annotate_figure(
+#forestplot
+panel_forest <- forestplot_func()
+panel_forest <- annotate_figure(
     panel_forest,
     top = text_grob(paste0(this.accession.no, " (", outcome, ")"), size = 14, hjust = 0, x = 0),
     bottom = text_grob(paste0("Senstivity and specificity calculated at Youden threshold \n",
-                              "Signature:TAP1, GBP5, GBP2, FCGR1CP"), 
-                       size = 12, hjust = 0, x = 0)
-  )
-  
-  
-
-
-} #close roc2 function
-
-clinical_treat <- clinical
-roc_func2(outcome = "Lung Disease")
+                              "Signature:TAP1, GBP5, GBP2, FCGR1B"),
+                       size = 12, hjust = 0, x = 0))
+ggsave(panel_forest, filename= file.path(this.figure.dir, paste0("forestplot_panel_", outcome,".png")),
+         width = 15, height = 20, units = "cm",   bg = "white"  )
 
 
 
-  
+
+
+
+
 # GSE19491  -----------------------------------------------------------------------------------------------------------------------------------
 
 #free up space and remove objects from previous gse (except for the functions I made and gene_annot)
@@ -4266,6 +3131,7 @@ outcome = "Lung Disease"
 boxplot_all <- as.data.frame(cbind(mean_zscore = mean_sig_zscore,
                                     group = clinical$group))
 
+boxplot_all <- boxplot_all[-which(boxplot_all$score == "NaN"),]
 
 boxplot_theme <- theme(axis.title = element_text(size = 24),
                     axis.text = element_text(size = 24),
@@ -4307,7 +3173,6 @@ boxplot$score <- as.numeric(boxplot$score)
 # Function defined previously
 this.figure.dir <- file.path(this.accession.res.dir, "figures", "boxplot")
 if(!exists(this.figure.dir)) dir.create(this.figure.dir, recursive = TRUE)
-
 
 
 boxplotfig <- ggplot(boxplot, aes(
@@ -4379,8 +3244,8 @@ Other_groups <- c("healthy control: Still",
 
 listof_sep_plots <- list(LON = LON_groups, SA = SA_groups, Other_dx = Other_groups)
 
-i = "SA"
 ## Seperate plots only ------
+
 for (i in names(listof_sep_plots)){
   boxplot_sep_subset <-  boxplot[boxplot$group %in% listof_sep_plots[[i]],]
   
@@ -4407,20 +3272,26 @@ for (i in names(listof_sep_plots)){
                  show.legend = TRUE) +
     
 
-    theme(axis.text.x = element_text(size = 22
-                                     # ,
-                                     # angle = 90,
-                                     # vjust = 0.5,
-                                     # hjust=1
-                                     )) +
-    
   labs(title = paste0("Signature Analysis: ", this.accession.no, " (", outcome, ")"),
        caption = paste0("Signature:TAP1, GBP5, GBP2, FCGR1CP", "\n", "n=", nrow(boxplot),"\n",
        "Signature scores calculated as mean of z-scored expression of signature genes\n",
-       "Normalised data was obtained from the original study (BeadStudio average chip normalisation)\nand log2-transformed prior to analysis")) +
+       "Normalised data was obtained from the original study \n(BeadStudio average chip normalisation)\nand log2-transformed prior to analysis")) +
   ylab (label = "Signature Score") +
-  xlab (label = "Disease")
+  xlab (label = "Disease") +
+  theme(axis.text.x = element_text(size = 22 ))
   
+  
+  
+  if(i == "SA"){
+    boxplot_sep <- boxplot_sep + theme(axis.text.x = element_text(size = 22))
+    }
+  
+  else{
+    boxplot_sep <- boxplot_sep + theme(axis.text.x = element_text(size = 22,
+                                     angle = 45,
+                                     hjust = 1),
+                                     plot.margin = margin(0, 0, 0, 2, "cm")) }
+    
   ggsave(boxplot_sep, filename = file.path(this.figure.dir, paste0("meanzscore_plot_",  i, "_",this.accession.no, ".png")),
        width = 2500,
        height = 3500,
@@ -4472,11 +3343,232 @@ pairwise_comparisons <- list(
   c("healthy control: Strep and Staph", "Staph"))
 
 
-comparison_labels <- sapply(pairwise_comparisons, function(x) {
+comparison_levels <- sapply(pairwise_comparisons, function(x) {
   paste(x[1], x[2], sep = " vs ")
 })
 
-#Make roc function
+comparison_plotlabel_levels <- comparison_levels
+
+# Run roc function
+this.figure.dir <- file.path(this.accession.res.dir, "figures", "roc")
+if(!exists(this.figure.dir)) dir.create(this.figure.dir, recursive = TRUE)
+
+clinical_treat <- clinical[which(clinical$sample_id %in% row.names(boxplot_all)),]
+counts_norm <- counts_norm[,row.names(clinical_treat)]
+mean_sig_zscore$sampleid <- row.names(mean_sig_zscore)
+mean_sig_zscore <- mean_sig_zscore[row.names(clinical_treat),]
+
+roc_func_res <- roc_func(outcome = outcome)
+res_table <- roc_func_res$res_table
+forestplot_res_table <- roc_func_res$forestplot_res_table
+roc_data <- roc_func_res$roc_data
+
+write.csv(res_table, file.path(this.accession.res.dir, paste0(this.accession.no,"_res_table_", outcome, ".csv")))
+write.csv(forestplot_res_table, file.path(this.accession.res.dir, paste0(this.accession.no,"_mean_ztransformed_scores_forestplot_res_table_", outcome, ".csv")))
+
+
+levels(roc_data$Comparison)
+
+
+roc_plot_width = 3200
+roc_plot_height = 3500
+
+
+### 1) South Africa TB VS Healthy  ---------------------------------
+levels(roc_data$Comparison)
+disease_roc_subset <- levels(roc_data$Comparison)[1]
+
+disease_roc <- disease_roc_plot_func(legend_nrow = 1)
+disease_roc <- disease_roc +   labs(
+    title = "ROC - South Africa Latent TB vs TB",
+    x = "FPR (1 - Specificity)",
+    y = "TPR (Sensitivity)",
+    color = "Comparison",
+    caption = "Signature:  TAP1, GBP5, GBP2, FCGR1CP") 
+
+
+ggsave(disease_roc, filename = file.path(this.figure.dir, paste0("SA_roc_tb.png")), 
+       width = roc_plot_width, 
+       height = roc_plot_height, 
+       units = "px")
+
+### 2) South Africa TB VS Other lung disease   ---------------------------------
+levels(roc_data$Comparison)
+disease_roc_subset <- levels(roc_data$Comparison)[2:6]
+
+disease_roc <- disease_roc_plot_func(legend_nrow = 2)
+disease_roc <- disease_roc +   labs(
+    title = "ROC - South Africa TB vs Other lung diseases",
+    x = "FPR (1 - Specificity)",
+    y = "TPR (Sensitivity)",
+    color = "Comparison",
+    caption = "Signature:  TAP1, GBP5, GBP2, FCGR1CP") 
+
+
+ggsave(disease_roc, filename = file.path(this.figure.dir, paste0("SA_roc_TBvsLungdx.png")), 
+       width = roc_plot_width, 
+       height = roc_plot_height, 
+       units = "px")
+
+
+### 3) London TB VS Healthy   ---------------------------------
+levels(roc_data$Comparison)
+disease_roc_subset <- levels(roc_data$Comparison)[c(7:11)]
+
+disease_roc <- disease_roc_plot_func(legend_nrow = 3)
+disease_roc <- disease_roc +   labs(
+    title = "ROC - London TB vs Healthy",
+    x = "FPR (1 - Specificity)",
+    y = "TPR (Sensitivity)",
+    color = "Comparison",
+    caption = "Signature:  TAP1, GBP5, GBP2, FCGR1CP") 
+
+
+ggsave(disease_roc, filename = file.path(this.figure.dir, paste0("LON_roc_tb.png")), 
+       width = roc_plot_width, 
+       height = roc_plot_height, 
+       units = "px")
+
+
+### 4) London across timepoints   ---------------------------------
+levels(roc_data$Comparison)
+disease_roc_subset <- levels(roc_data$Comparison)[c(12:13)]
+
+disease_roc <- disease_roc_plot_func(legend_nrow = 2)
+disease_roc <- disease_roc +   labs(
+    title = "ROC - London TB across treatment timepoints",
+    x = "FPR (1 - Specificity)",
+    y = "TPR (Sensitivity)",
+    color = "Comparison",
+    caption = "Signature:  TAP1, GBP5, GBP2, FCGR1CP") 
+
+
+ggsave(disease_roc, filename = file.path(this.figure.dir, paste0("LON_roc_tb_time.png")), 
+       width = roc_plot_width, 
+       height = roc_plot_height, 
+       units = "px")
+
+
+### 5) London TB VS Other lung disease   ---------------------------------
+levels(roc_data$Comparison)
+disease_roc_subset <- levels(roc_data$Comparison)[c(14:18)]
+
+disease_roc <- disease_roc_plot_func(legend_nrow = 2)
+disease_roc <- disease_roc +   labs(
+    title = "ROC - London TB vs Other lung diseases",
+    x = "FPR (1 - Specificity)",
+    y = "TPR (Sensitivity)",
+    color = "Comparison",
+    caption = "Signature:  TAP1, GBP5, GBP2, FCGR1CP") 
+
+
+ggsave(disease_roc, filename = file.path(this.figure.dir, paste0("LON_roc_TBvsLungdx.png")), 
+       width = roc_plot_width, 
+       height = roc_plot_height, 
+       units = "px")
+
+
+### 6) Other lung disease   ---------------------------------
+levels(roc_data$Comparison)
+disease_roc_subset <- levels(roc_data$Comparison)[c(19:23)]
+
+disease_roc <- disease_roc_plot_func(legend_nrow = 3)
+disease_roc <- disease_roc +   labs(
+    title = "ROC - Other lung diseases",
+    x = "FPR (1 - Specificity)",
+    y = "TPR (Sensitivity)",
+    color = "Comparison",
+    caption = "Signature:  TAP1, GBP5, GBP2, FCGR1CP") 
+
+
+ggsave(disease_roc, filename = file.path(this.figure.dir, paste0("roc_lungdx.png")), 
+       width = roc_plot_width, 
+       height = roc_plot_height, 
+       units = "px")
+
+
+#forestplot
+forestplot_res_table <- roc_func_res$forestplot_res_table
+res_table <- forestplot_res_table
+  
+res_table$comparison <- factor(res_table$comparison, levels = comparison_levels)
+  
+res_table[,-1] <- lapply(res_table[,-1], as.numeric)
+
+
+forestplot_theme <- theme(axis.title = element_text(size =  16),
+                            axis.text = element_text(size = 14),
+                            legend.position = "None") 
+auc_plot <- res_table %>% 
+    ggplot(aes(y = comparison)) + 
+    theme_bw() +
+    geom_point(aes(x=auc, color = comparison), shape=15, size=3) +
+    geom_linerange(aes(xmin=auc_ci_low, 
+                       xmax=auc_ci_high, 
+                       color = comparison),
+                   size = 1) +
+    forestplot_theme +
+    scale_y_discrete(labels = comparison_plotlabel_levels)+
+    ylab(NULL)+
+    xlab("AUC")+
+    coord_cartesian( xlim=c(0.1, 1))
+
+
+  sens_plot <- res_table %>% 
+    ggplot(aes(y = comparison)) + 
+    theme_bw() +
+    geom_point(aes(x=sensitivity, color = comparison), shape=15, size=3) +
+    geom_linerange(aes(xmin=sensitivity_ci_low, 
+                       xmax=sensitivity_ci_high, 
+                       color = comparison),
+                   size = 1) +
+    forestplot_theme +
+        theme(
+  axis.text.y = element_blank(),
+  axis.ticks.y = element_blank())+
+    scale_y_discrete(labels = comparison_plotlabel_levels)+
+    ylab(NULL)+
+    xlab("Sensitivity")+
+    coord_cartesian( xlim=c(0.1, 1))
+  
+  spec_plot <- res_table %>% 
+    ggplot(aes(y = comparison)) + 
+    theme_bw() +
+    geom_point(aes(x=specificity, color = comparison), shape=15, size=3) +
+    geom_linerange(aes(xmin=specificity_ci_low, 
+                       xmax=specificity_ci_high, 
+                       color = comparison),
+                   size = 1) +
+    forestplot_theme +
+    theme(
+  axis.text.y = element_blank(),
+  axis.ticks.y = element_blank())+
+    scale_y_discrete(labels = comparison_plotlabel_levels)+
+    ylab(NULL)+
+    xlab("Specificity")+
+    
+    coord_cartesian( xlim=c(0.1, 1))
+  
+  
+  panel_forest <- ggarrange(plotlist = list(auc_plot, sens_plot, spec_plot ),
+                            ncol = 3,
+                            nrow = 1,
+                            widths = c(1.2,0.5,0.5))
+  
+  panel_forest <- annotate_figure(
+    panel_forest,
+    top = text_grob(paste0(this.accession.no, " (", outcome, ")"), size = 14, hjust = 0, x = 0),
+    bottom = text_grob(paste0("Senstivity and specificity calculated at Youden threshold \n",
+                              "Signature:TAP1, GBP5, GBP2, FCGR1CP"), 
+                       size = 12, hjust = 0, x = 0)
+  )
+
+  
+  ggsave(panel_forest, filename= file.path(this.figure.dir, paste0("forestplot_panel_", outcome,".png")),
+         width = 40, height = 20, units = "cm",   bg = "white"  )
+  
+  
+  #Make roc function
 this.figure.dir <- file.path(this.accession.res.dir, "figures", "roc")
 if(!exists(this.figure.dir)) dir.create(this.figure.dir, recursive = TRUE)
 
@@ -4724,7 +3816,7 @@ boxplotfig <- boxplotfig +
   labs(title = paste0("Signature Analysis: ", this.accession.no, " (", outcome, ")"),
        caption = paste0("Signature:TAP1, GBP5, GBP2, FCGR1C", "\n", "n=", nrow(boxplot),"\n",
        "Signature scores calculated as mean of z-scored expression of signature genes\n",
-       "Normalised expression data was obtained from original study: described as background \n corrected, log2-transformed and 75th percentile normalised using GeneSpring 11.5\n",
+       "Normalised expression data was obtained from original study: described as background corrected, normalised\n and log2-transformed\n",
        "P values from Mann-Whitney U test shown"))+
     scale_x_discrete(labels = function(x) ifelse(x == "Non-active Sarcoidosis", "Non-active \n Sarcoidosis", 
                                                ifelse(x == "Active Sarcoidosis", "Active \n Sarcoidosis",
@@ -4770,33 +3862,47 @@ comparison_plotlabel_levels <- comparison_levels
 this.figure.dir <- file.path(this.accession.res.dir, "figures", "roc")
 if(!exists(this.figure.dir)) dir.create(this.figure.dir, recursive = TRUE)
 
-# Create a list to store AUC values and roc objects
-res_table <- data.frame()
-roc_objects <- list()
-forestplot_res_table <- data.frame()
-
-
-
-
 clinical_treat <- clinical
 
+roc_func_res <- roc_func(outcome = outcome)
+res_table <- roc_func_res$res_table
+forestplot_res_table <- roc_func_res$forestplot_res_table
+
+write.csv(res_table, file.path(this.accession.res.dir, paste0(this.accession.no,"_res_table_", outcome, ".csv")))
+write.csv(forestplot_res_table, file.path(this.accession.res.dir, paste0(this.accession.no,"_mean_ztransformed_scores_forestplot_res_table_", outcome, ".csv")))
+
+
 disease_roc_subset <- comparison_levels
-timepoint_roc_subset <- NULL
-
-
-disease_legend_nrow = 2
-timepoint_legend_nrow = NULL
 
 roc_plot_width = 3200
 roc_plot_height = 3500
 
 
+# disease plot
+disease_roc <- disease_roc_plot_func(legend_nrow = 2)
+disease_roc <- disease_roc +   labs(
+    title = paste0("TB vs Other lung diseases", " (", outcome, ")"),
+    x = "FPR (1 - Specificity)",
+    y = "TPR (Sensitivity)",
+    color = "Comparison",
+    caption = "Signature:  TAP1, GBP5, GBP2, FCGR1CP") 
 
-# Run roc function
 
-clinical_treat <- clinical
-roc_func2(outcome = "Lung Disease")
+ggsave(disease_roc, filename = file.path(this.figure.dir, paste0("disease_roc_", outcome,".png")), 
+       width = roc_plot_width, 
+       height = roc_plot_height, 
+       units = "px")
 
+#forestplot
+panel_forest <- forestplot_func()
+panel_forest <- annotate_figure(
+    panel_forest,
+    top = text_grob(paste0(this.accession.no, " (", outcome, ")"), size = 14, hjust = 0, x = 0),
+    bottom = text_grob(paste0("Senstivity and specificity calculated at Youden threshold \n",
+                              "Signature:TAP1, GBP5, GBP2, FCGR1B"),
+                       size = 12, hjust = 0, x = 0))
+ggsave(panel_forest, filename= file.path(this.figure.dir, paste0("forestplot_panel_", outcome,".png")),
+         width = 15, height = 20, units = "cm",   bg = "white"  )
 
 
 # GSE83456  ----------------------------------------------------------------------------------------------------------------------------------------
@@ -4906,6 +4012,7 @@ mean_sig_zscore <- mean_zscore_func() #Function already defined for previous gse
 
 
 ## 3.1) Boxplot ---------------------------
+
 outcome = "Lung Disease"
 boxplot_all <- as.data.frame(cbind(mean_zscore = mean_sig_zscore,
                                     group = clinical$group))
@@ -4924,11 +4031,6 @@ x_order <- c("HC", "PTB", "EPTB", "Sarcoidosis")
 
 
 
-my_comparisons <- combn(unique(clinical$group), 2, simplify = FALSE)
-
-
-x_order <- c("HC", "PTB", "EPTB", "Sarcoidosis")
-
 
 # Run boxplot function for all (no treatment outcome data for this gse)
 # Function defined previously
@@ -4941,10 +4043,13 @@ boxplotfig <- boxplot_func(outcome = "Lung Disease")
 
 boxplotfig <- boxplotfig +
   labs(title = paste0("Signature Analysis: ", this.accession.no, " (", outcome, ")"),
-       caption = paste0("Signature:TAP1, GBP5, GBP2, FCGR1CP", "\n", "n=", nrow(boxplot),"\n",
+       caption = paste0("Signature:TAP1, GBP5, GBP2, FCGR1C", "\n", "n=", nrow(boxplot),"\n",
        "Signature scores calculated as mean of z-scored expression of signature genes\n",
-       "Normalised expression data was obtained from original study: quantile normalisation and background subtracted using GenomeStudio"
-       ))
+       "Normalised expression data was obtained from original study: described as background \ncorrected and quantile normalised using GenomeStudio\n",
+       "P values from Mann-Whitney U test shown"))+
+    scale_x_discrete(labels = function(x) ifelse(x == "Non-active Sarcoidosis", "Non-active \n Sarcoidosis", 
+                                               ifelse(x == "Active Sarcoidosis", "Active \n Sarcoidosis",
+                                                      x)))
 
 
 
@@ -4952,7 +4057,6 @@ ggsave(boxplotfig, filename = file.path(this.figure.dir, paste0("meanzscore_plot
        width = 3600,
        height = 3200,
        units = "px" )
-
 
 
 ## 4) Validation  ------------------------------------------------------
@@ -4968,13 +4072,13 @@ pairwise_comparisons <- list(
   c("EPTB", "Sarcoidosis")
 )
 
-comparison_levels <- list(
-  c("HC vs PTB"),
-  c("HC vs EPTB"),
-  c("HC vs Sarcoidosis"),
-  c("PTB vs EPTB"),
-  c("PTB vs Sarcoidosis"),
-  c("EPTB vs Sarcoidosis")
+comparison_levels <- c(
+  "HC vs PTB",
+  "HC vs EPTB",
+  "HC vs Sarcoidosis",
+  "PTB vs EPTB",
+  "PTB vs Sarcoidosis",
+  "EPTB vs Sarcoidosis"
 )
 
 comparison_plotlabel_levels <- comparison_levels
@@ -4990,22 +4094,47 @@ if(!exists(this.figure.dir)) dir.create(this.figure.dir, recursive = TRUE)
 
 clinical_treat <- clinical
 
+roc_func_res <- roc_func(outcome = outcome)
+res_table <- roc_func_res$res_table
+forestplot_res_table <- roc_func_res$forestplot_res_table
+
+write.csv(res_table, file.path(this.accession.res.dir, paste0(this.accession.no,"_res_table_", outcome, ".csv")))
+write.csv(forestplot_res_table, file.path(this.accession.res.dir, paste0(this.accession.no,"_mean_ztransformed_scores_forestplot_res_table_", outcome, ".csv")))
+
+
+
+
 disease_roc_subset <- comparison_levels
-timepoint_roc_subset <- NULL
-
-
-disease_legend_nrow = 2
-timepoint_legend_nrow = NULL
 
 roc_plot_width = 3200
 roc_plot_height = 3500
 
 
+# disease plot
+disease_roc <- disease_roc_plot_func(legend_nrow = 2)
+disease_roc <- disease_roc +   labs(
+    title = paste0("TB vs Other lung diseases", " (", outcome, ")"),
+    x = "FPR (1 - Specificity)",
+    y = "TPR (Sensitivity)",
+    color = "Comparison",
+    caption = "Signature:  TAP1, GBP5, GBP2, FCGR1CP") 
 
-# Run roc function
 
-clinical_treat <- clinical
-roc_func2(outcome = "Lung Disease")
+ggsave(disease_roc, filename = file.path(this.figure.dir, paste0("disease_roc_", outcome,".png")), 
+       width = roc_plot_width, 
+       height = roc_plot_height, 
+       units = "px")
+
+#forestplot
+panel_forest <- forestplot_func()
+panel_forest <- annotate_figure(
+    panel_forest,
+    top = text_grob(paste0(this.accession.no, " (", outcome, ")"), size = 14, hjust = 0, x = 0),
+    bottom = text_grob(paste0("Senstivity and specificity calculated at Youden threshold \n",
+                              "Signature:TAP1, GBP5, GBP2, FCGR1B"),
+                       size = 12, hjust = 0, x = 0))
+ggsave(panel_forest, filename= file.path(this.figure.dir, paste0("forestplot_panel_", outcome,".png")),
+         width = 15, height = 20, units = "cm",   bg = "white"  )
 
 
 
@@ -5098,7 +4227,6 @@ listoftT <- list()
 listoftT2 <- list()
 listofvolcano <- list()
 
-i = "test1"
 for (i in colnames(cont.matrix)){
   #contrasts.fit converts the coefficients and standard errors to reflect the contrasts rather than the original design matrix, but does not compute t-statistics or p-values. 
   fit2 <- contrasts.fit(fit, contrast=cont.matrix[,i])
@@ -5115,7 +4243,7 @@ for (i in colnames(cont.matrix)){
       tT$adj.P.Val < 0.05 & tT$logFC < -1, "Downregulated",
       "Not Sig"))
   
-  tT$gene <- gene_annot[match(row.names(tT), gene_annot$ID), "ID"]
+  tT$gene <- gene_annot[match(row.names(tT), gene_annot$ID), "Symbol_alias"]
   
   selection <-which((tT$logFC>1|tT$logFC< -1)&tT$adj.P.Val<0.05)
   tT2 <- tT[selection,]
