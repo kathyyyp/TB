@@ -613,6 +613,10 @@ for (hk in names(listof_normdata)){
     if(number_of_genes == "4"){
       expr_set <- expr_set[-c(which(row.names(expr_set) == "S100A8" | row.names(expr_set) == "CD274" | row.names(expr_set) == "IFITM1")),]
     }
+    
+    if(number_of_genes == "3"){
+      expr_set <- expr_set[-c(which(row.names(expr_set) == "S100A8" | row.names(expr_set) == "CD274" | row.names(expr_set) == "IFITM1" | row.names(expr_set) == "TAP1" )),]
+    }
     #transpose for scaling
     expr_set<-t(expr_set)
     
@@ -659,7 +663,8 @@ for (hk in names(listof_normdata)){
   # listofstandardised_scores[["6_genes"]] <- scaledcentered_mean_func(number_of_genes = "6")
   # listofstandardised_scores[["5_genes"]] <- scaledcentered_mean_func(number_of_genes = "5")
   listofstandardised_scores[["4_genes"]] <- scaledcentered_mean_func(number_of_genes = "4")
-  
+    listofstandardised_scores[["3_genes"]] <- scaledcentered_mean_func(number_of_genes = "3")
+
   listofresults[[hk]] <- listofstandardised_scores
   
   mean_sigcenter_scores <- do.call(rbind,
@@ -696,7 +701,7 @@ for (hk in names(listofresults)){
   if(!exists(this.figures.dir)) dir.create(this.figures.dir)
   
   ## SCALED & CENTERED =================================================
-  #loop over 4, 5, 6 and 7genes
+  #loop over 3, 4, and 7genes
   for(g in names(listofstandardised_scores)){
   
   score_data <- listofstandardised_scores[[g]][["scores"]]

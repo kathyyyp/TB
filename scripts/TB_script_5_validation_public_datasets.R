@@ -1430,7 +1430,7 @@ comparison_levels <- c(
 
 comparison_plotlabel_levels <- comparison_levels
 
-#Make roc function
+#Run ROC function
 this.figure.dir <- file.path(this.accession.res.dir, "figures", "roc")
 if(!exists(this.figure.dir)) dir.create(this.figure.dir)
 
@@ -1765,7 +1765,7 @@ comparison_levels <- c(
 comparison_plotlabel_levels <- comparison_levels
 
 
-#Make roc function
+#Run ROC function
 this.figure.dir <- file.path(this.accession.res.dir, "figures", "roc")
 if(!exists(this.figure.dir)) dir.create(this.figure.dir)
 
@@ -1960,7 +1960,7 @@ comparison_levels <- c(
 comparison_plotlabel_levels <- comparison_levels
 
 
-#Make roc function
+#Run ROC function
 this.figure.dir <- file.path(this.accession.res.dir, "figures", "roc")
 if(!exists(this.figure.dir)) dir.create(this.figure.dir)
 
@@ -2311,7 +2311,7 @@ ggsave(timepoint_roc, filename = file.path(this.figure.dir, paste0("timepoint_ro
 ## Forest plot -------
 res_table <- forestplot_res_table
   
-res_table$comparison <- factor(res_table$comparison, levels = comparisons_levels)
+res_table$comparison <- factor(res_table$comparison, levels = comparison_levels)
   
 res_table[,-1] <- lapply(res_table[,-1], as.numeric)
 
@@ -3550,114 +3550,6 @@ auc_plot <- res_table %>%
   ggsave(panel_forest, filename= file.path(this.figure.dir, paste0("forestplot_panel_", outcome,".png")),
          width = 40, height = 20, units = "cm",   bg = "white"  )
   
-  
-  #Make roc function
-this.figure.dir <- file.path(this.accession.res.dir, "figures", "roc")
-if(!exists(this.figure.dir)) dir.create(this.figure.dir, recursive = TRUE)
-
-# Create a list to store AUC values and roc objects
-res_table <- data.frame()
-roc_objects <- list()
-forestplot_res_table <- data.frame()
-
-
-
-
-clinical_treat <- clinical
-# Loop through each pairwise comparison
-for (pair in pairwise_comparisons) {
-  
-  group1 <- pair[1]
-  group2 <- pair[2]
-  
-  # Subset data to omly include the 2 rgroups of interest
-  subset_clinical <- clinical_treat[clinical_treat$group %in% c(group1,group2),]
-  subset_counts <- counts_norm[, row.names(subset_clinical)]
-  
-  subset_clinical$group <- factor(subset_clinical$group, levels = c(group1, group2))
-  
-gene_set <- subset_counts[gene_set_list,]
-gene_set <- t(gene_set) #genes are columns so we can z-score column-wise (centre = centre each gene around its own mean)
-      # Gene-wise z-score = for each gene, how does this sample compare to all other samples for that gene, then average across our 7 genes
-      # This tells you if a sample has collectively high expression of your gene set relative to the cohort      
-gene_set_zscore<-scale(gene_set, center=T, scale=T)   # This results in a standardized dataset with mean = 0 and standard deviation = 1 (z-score transformation).
-      #take the mean of the scaled+centred data for each gene and use this as each sample's score
-      #each row is a sample and each column is a gene. we are taking the average ACROSS the columns so every sample gets 1 score
-mean_sig_zscore<- data.frame(rowMeans(gene_set_zscore))
-colnames(mean_sig_zscore) <- "score"
-
-all(row.names(mean_sig_zscore) == row.names(subset_clinical))
-
-  
-  glm_data <- data.frame(Score = mean_sig_zscore[,"score"], Group = subset_clinical$group)
-  
-  table(glm_data$Group)
-  
-  
-  glm_data$Group <- factor(glm_data$Group, levels = c(group1, group2))
-  glm_model <- glm(Group ~ Score, data = glm_data, family = binomial) 
-  
-  test_probs <- predict(glm_model, type = "response")
-  
-  roc_obj <- roc(glm_data$Group, test_probs)
-  
-  plot(roc_obj)
-  auc(roc_obj)
-  auc_ci <- ci.auc(roc_obj)  #default 95% CI is computed with 2000 stratified bootstrap replicates.
-  
-  #  The "optimal threshold" refers to the point on the ROC curve where you achieve the best balance between sensitivity and specificity, or where the classifier is most effective at distinguishing between the positive and negative classes.
-  optimal_threshold_coords <- coords(roc_obj, "best", ret = c("threshold", "sensitivity", "specificity", best.method = "youden"))
-  
-  if(nrow(optimal_threshold_coords) > 1) {
-    optimal_threshold_coords <- optimal_threshold_coords[1,] # some output have 2 equally optimal thresholds = same AUC. just keep  first one as results are the same
-  }
-  
-  
-  
-  # Sensitivity confidence interval (at optimal specificity)
-  ci_sens <- ci.se(roc_obj, specificities =  as.numeric(optimal_threshold_coords["specificity"])) 
-  
-  # Specificity confidence interval (at optimal sensitivity)
-  ci_spec <- ci.sp(roc_obj, sensitivities =  as.numeric(optimal_threshold_coords["sensitivity"]))
-  
-  res_current <-cbind(
-    comparison = paste0(group1,"vs",group2),
-    samples_group1 = paste(group1, "=", sum(glm_data$Group == group1)),
-    samples_group2 = paste(group2, "=", sum(glm_data$Group == group2)),
-    auc = auc(roc_obj),
-    ci = paste0(round(as.numeric(auc_ci[1]),2), "-", round(as.numeric(auc_ci[3]),2)),
-    sensitivity = optimal_threshold_coords$sensitivity, 
-    specificity = optimal_threshold_coords$specificity
-    
-  )
-  
-  res_table <- rbind(res_table, res_current)
-  
-  forestplot_res_table <- rbind(forestplot_res_table, 
-                                cbind(comparison = paste0(group1,"vs",group2),
-                                      auc = auc(roc_obj),
-                                      auc_ci_low = as.numeric(auc_ci[1]),
-                                      auc_ci_high = as.numeric(auc_ci[3]),
-                                      
-                                      sensitivity = optimal_threshold_coords$sensitivity, 
-                                      sensitivity_ci_low = ci_sens[, "2.5%"],
-                                      sensitivity_ci_high = ci_sens[, "97.5%"],
-                                      
-                                      specificity = optimal_threshold_coords$specificity,
-                                      specificity_ci_low = ci_spec[, "2.5%"],
-                                      specificity_ci_high = ci_spec[, "97.5%"])
-  )
-  
-  roc_objects[[paste0(group1,"vs",group2)]] <- roc_obj
-  
-} # close pair
-
-
-# saveRDS(roc_objects, file.path(this.accession.res.dir, paste0(this.accession.no,"_roc_objects_", outcome, ".rds")))
-write.csv(res_table, file.path(this.accession.res.dir, paste0(this.accession.no,"_res_table_", outcome, ".csv")))
-write.csv(forestplot_res_table, file.path(this.accession.res.dir, paste0(this.accession.no,"_mean_ztransformed_scores_forestplot_res_table_", outcome, ".csv")))
-
-
 
 
 
@@ -3841,7 +3733,7 @@ comparison_levels <- sapply(pairwise_comparisons, function(x) {
 comparison_plotlabel_levels <- comparison_levels
 
 
-#Make roc function
+#Run ROC function
 this.figure.dir <- file.path(this.accession.res.dir, "figures", "roc")
 if(!exists(this.figure.dir)) dir.create(this.figure.dir, recursive = TRUE)
 
@@ -4070,7 +3962,7 @@ comparison_plotlabel_levels <- comparison_levels
 res_table <- data.frame()
 roc_objects <- list()
 
-#Make roc function
+#Run ROC function
 this.figure.dir <- file.path(this.accession.res.dir, "figures", "roc")
 if(!exists(this.figure.dir)) dir.create(this.figure.dir, recursive = TRUE)
 
@@ -4133,7 +4025,7 @@ if(!exists(diffexp.dir)) dir.create(diffexp.dir)
 if(!exists(results.dir)) dir.create(results.dir)
 if(!exists(figures.dir)) dir.create(figures.dir)
 
-
+colnames(raw_metadata) <- make.names(colnames(raw_metadata))
 clinical_de <- raw_metadata[,c("geo_accession",
                                "title",
                                "disease.state.ch1",

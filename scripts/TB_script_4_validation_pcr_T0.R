@@ -355,6 +355,10 @@ for (hk in names(listof_normdata)){
     if(number_of_genes == "4"){
       expr_set <- expr_set[-c(which(row.names(expr_set) == "S100A8" | row.names(expr_set) == "CD274" | row.names(expr_set) == "IFITM1")),]
     }
+    
+        if(number_of_genes == "3"){
+      expr_set <- expr_set[-c(which(row.names(expr_set) == "S100A8" | row.names(expr_set) == "CD274" | row.names(expr_set) == "IFITM1" | row.names(expr_set) == "TAP1" )),]
+    }
     #transpose for scaling
     expr_set<-t(expr_set)
     
@@ -394,7 +398,8 @@ for (hk in names(listof_normdata)){
   # listofstandardised_scores[["6_genes"]] <- scaledcentered_mean_func(number_of_genes = "6")
   # listofstandardised_scores[["5_genes"]] <- scaledcentered_mean_func(number_of_genes = "5")
   listofstandardised_scores[["4_genes"]] <- scaledcentered_mean_func(number_of_genes = "4")
-  
+      listofstandardised_scores[["3_genes"]] <- scaledcentered_mean_func(number_of_genes = "3")
+
   listofresults[[hk]] <- listofstandardised_scores
   
   mean_sigcenter_scores <- do.call(rbind,
@@ -571,8 +576,9 @@ for (hk in names(listofresults)){
     "7_genes:", paste0(listofstandardised_scores[["7_genes"]][["gene_list"]], collapse = ","), "\n" ,
     # "6_genes:", paste0(listofstandardised_scores[["6_genes"]][["gene_list"]], collapse = ","), "\n",
     # "5_genes:", paste0(listofstandardised_scores[["5_genes"]][["gene_list"]], collapse = ","), "\n",
-    "4_genes:", paste0(listofstandardised_scores[["4_genes"]][["gene_list"]], collapse = ","), "\n"
-    
+    "4_genes:", paste0(listofstandardised_scores[["4_genes"]][["gene_list"]], collapse = ","), "\n",
+    "3_genes:", paste0(listofstandardised_scores[["3_genes"]][["gene_list"]], collapse = ","), "\n"
+
   )
   
 
@@ -683,7 +689,7 @@ roc_data <- roc_data %>%
     theme_bw() +
     geom_abline(slope = 1, intercept = 0, linetype = "dashed", color = "black")  +
     guides(colour = guide_legend(nrow = 2)) +
-    scale_color_manual(values = c("#009E73", "#CC79A7")) +
+    scale_color_manual(values = c("#009E73", "#CC79A7", "#0072B2")) +
     theme(legend.position = "bottom",
           legend.title = element_blank(),
           axis.title = element_text(size = 24),
@@ -699,7 +705,7 @@ roc_data <- roc_data %>%
         caption = gene_list)
 
   ggsave(disease_roc, filename = file.path(this.figures.dir, paste0(hk, "_ROC_mean_z_transformed_scores.png")),
-         width = 2500,
+         width = 2500, 
          height = 3000,
          units = "px" )
   
@@ -732,8 +738,9 @@ for (hk in names(listofresults)){ # housekeeping gene loop
   # )
   gene_list <- paste0(
     "7_genes:", paste0(listofstandardised_scores[["7_genes"]][["gene_list"]], collapse = ","), "\n",
-    "4_genes:", paste0(listofstandardised_scores[["4_genes"]][["gene_list"]], collapse = ","), "\n"
-    
+    "4_genes:", paste0(listofstandardised_scores[["4_genes"]][["gene_list"]], collapse = ","), "\n",
+        "3_genes:", paste0(listofstandardised_scores[["3_genes"]][["gene_list"]], collapse = ","), "\n"
+
   )
   forestplot_theme <- theme(axis.title = element_text(size =  16),
                             axis.text = element_text(size = 14),
@@ -745,7 +752,9 @@ for (hk in names(listofresults)){ # housekeeping gene loop
   
   colours<- c(
     "7_genes" = "#009E73",
-    "4_genes" = "#CC79A7")
+    "4_genes" = "#CC79A7",
+    "3_genes" = "#0072B2"
+    )
 
   auc_plot <- res_table %>% 
     ggplot(aes(y = numberofgenes)) + 
@@ -803,7 +812,7 @@ for (hk in names(listofresults)){ # housekeeping gene loop
   )
   
   
-  ggsave(panel_forest, filename= file.path(this.figures.dir, paste0(hk,"_forestplot_panel.png")),
+  ggsave(panel_forest, filename= file.path(this.figures.dir, paste0(hk," _forestplot_panel.png")),
          width = 15, height = 20, units = "cm",   bg = "white"  )
   
   # } #close gene signature loop
