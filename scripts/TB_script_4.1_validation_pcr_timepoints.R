@@ -1142,7 +1142,7 @@ for (hk in names(listofresults)){ # housekeeping gene loop
     scale_color_manual(values = roc_palette) +
     
     labs(
-      title = "ROC - TB vs HC",
+      title = "ROC - TB treatment timepoints",
       x = "FPR (1 - Specificity)",
       y = "TPR (Sensitivity)",
       color = "Comparison",
