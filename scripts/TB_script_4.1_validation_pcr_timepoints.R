@@ -399,7 +399,7 @@ for (hk in names(listof_normdata)){
       filter(group %in% c(group1, group2), PID %in% paired_ids)
   }
   
-  ## Make stat.table.gsva ---------------------------------------------------------------------------------------
+  ## Make stat.table ---------------------------------------------------------------------------------------
   #map_dfr will apply the below function to each element of list my_paired_comparisons, and directly rbind the results
   #In this function, 'groups' is each element of the list. so groups[1] should be "HC_T0"
   #Using map_dfr here is the same as if we wrote stat_table_function <- function(groups){...} and then did stat_table_function(groups = my_paired_comparisons[1]) and stat_table_function(groups = my_paired_comparisons[2]) etc etc for all 4 comparisons, and then rbinded the output together
@@ -715,7 +715,7 @@ for (hk in names(listofresults)){
   
   
   
-  gsva_theme <- theme(axis.title = element_text(size = 20),
+  boxplot_theme <- theme(axis.title = element_text(size = 20),
                       axis.text = element_text(size = 20),
                       title = element_text(size = 20),
                       legend.position = "None") 
@@ -839,7 +839,7 @@ for (hk in names(listofresults)){
     
     theme_bw()+
     
-    gsva_theme +
+    boxplot_theme +
     
     geom_boxplot(position = position_dodge(1)) +
     
@@ -1273,3 +1273,549 @@ for (hk in names(listofresults)){ # housekeeping gene loop
   
   } #number of genes loop
 } # close hk loop
+
+
+
+
+
+
+
+
+
+# ================================================================================== #
+# 8. CORRELATE CLINICAL FEATURES WITH 4_genes and 7_genes signature ==================================
+# ================================================================================== #
+clinical_correlation.dir <- file.path(validation.dir, "clinical_correlation")
+if(!exists(clinical_correlation.dir)) dir.create(clinical_correlation.dir)
+
+#Load in clinical and expression file
+hk = "avg_B2M_GAPDH"
+expression <- read.csv(file.path(validation.dir, hk ,paste0(hk ,"_relative_expression.csv")), row.names = 1, check.names = FALSE)
+clinical <- read.csv(file.path(validation.dir, hk ,"clinical.csv"), row.names=1, check.names = FALSE)
+
+
+#Load in clinical variables metadata (this data was provided later, so is not in the files loaded at the start of this script)
+HC_T0_more_metadata <- read.csv(file.path(data.dir, "raw", "202603", "20251208_rna_household contacts.csv"))
+TB_T0_more_metadata <- read.csv(file.path(data.dir, "raw", "202603", "20260108_rna_index data with tx outcomes.csv"))
+
+#Combine the two metadata files and rename the columns to age, sex and smoking status (smoking_status column needs to be made by combining 2 columns)
+more_metadata <- rbind(
+  HC_T0_more_metadata %>% 
+    #combine the smoke columns
+    mutate(smoking_status = ifelse(contacttobacco_enrol == "never", 
+                                   "never", 
+                                   smokedlastmonth_enrol)) %>% 
+    #subset for varialbes we want
+    select(PID = pid,
+           age,
+           sex = gender_enrol,
+           smoking_status),
+  
+  #rbind to TB df
+  TB_T0_more_metadata %>% 
+        mutate(smoking_status = ifelse(patienttobacco_crf101 %in% c("never","Never"), 
+                                   "Never", 
+                                   smokelastmonth_crf101)) %>% 
+    
+    select(PID = pid,
+           age = calculated_age_years_crf101,
+           sex = patientgender_crf101,
+           smoking_status) 
+
+) 
+
+more_metadata$sex <- ifelse(more_metadata$sex == "Female",
+                            "female",
+                            ifelse(more_metadata$sex == "Male",
+                                   "male", 
+                                   more_metadata$sex ))
+
+
+more_metadata$smoking_status <- ifelse(more_metadata$smoking_status == "Never",
+                            "never",
+                            ifelse(more_metadata$smoking_status == "Former",
+                                   "former", 
+                                   ifelse(more_metadata$smoking_status == "Current",
+                                          "current",
+                                   more_metadata$smoking_status)))
+#Join the extra metadata to clinical file
+setdiff(clinical$PID, more_metadata$PID)
+setdiff(more_metadata$PID,clinical$PID)
+
+clinical <- cbind(clinical, 
+                  more_metadata[match(clinical$PID, more_metadata$PID),
+                                -1])
+
+clinical$condition <- clinical$disease
+
+## Patient demographics--------
+current_clinical <- clinical
+# current_clinical <- clinical[-c(which(is.na(clinical$sex))),]
+# current_clinical[which(is.na(current_clinical$sex)), "sex"] <- "NA"
+# current_clinical[which(is.na(current_clinical$smoking_status)), "smoking_status"] <- NA
+
+current_clinical$age_category <- cut(as.numeric(current_clinical$age),
+                                     breaks=c(15, 25, 35, 45, 55, 65, Inf),
+                                     labels = c("15-24", "25-34", "35-44", "45-54", "55-64", "65+"),
+                                     right = FALSE) #range will include lower bound but not the upper bound
+
+detach("package:plyr", unload = TRUE)
+
+library("dplyr")
+clinical_demographics <- t(current_clinical %>% 
+                             dplyr::group_by(condition) %>% 
+                             dplyr::summarise(
+                               total_patients = n(),  # Count total patients in each disease group
+                               male_patients = sum(sex == "male"),  # Count male patients in each disease group
+                               female_patients = sum(sex == "female"),  # Count male patients in each disease group
+                               # no_sex_data = sum(sex == "NA"),
+                               neversmoker = sum (smoking_status == "never"),
+                               currentsmoker = sum (smoking_status == "current"),
+                               former = sum (smoking_status == "former"),
+                               # no_smoke_data = sum(smoking_status == "NA"),
+                               age15_24 = sum (age_category == "15-24"),
+                               age25_34 = sum (age_category == "25-34"),
+                               age35_44 = sum (age_category == "35-44"),
+                               age45_54 = sum (age_category == "45-54"),
+                               age55_64 = sum (age_category == "55-64"),
+                               age65plus= sum (age_category == "65+")
+                             ))
+
+write.csv(clinical_demographics,file.path(clinical_correlation.dir, "counts_per_clinicalfeature.csv"))
+
+
+# ================================================================================== #
+## 8.2 Mean Z-Score TB T0 vs T2, vs T4 vs T6 ===============================================
+# ================================================================================== #
+
+genesig_D_7 <- c("IFITM1","CD274","TAP1","GBP5","GBP2","S100A8","FCGR1CP")
+genesig_D_4 <-  c("TAP1","GBP5","GBP2","FCGR1CP")
+
+TB_samples <- row.names(clinical)[which(clinical$disease_simple == "TB")]
+expression_TB <- expression[,TB_samples]
+clinical_TB <- clinical[TB_samples,]
+
+
+#Transpose and use hgnc symbols again
+expression_sig4 <- expression_TB[genesig_D_4,]
+expression_sig7 <- expression_TB[genesig_D_7,]
+
+expr_zscore_4<-scale(t(expression_sig4), center=T, scale=T)   # This results in a standardized dataset with mean = 0 and standard deviation = 1 (z-score transformation).
+expr_zscore_7<-scale(t(expression_sig7), center=T, scale=T)   # This results in a standardized dataset with mean = 0 and standard deviation = 1 (z-score transformation).
+
+
+#Create scores
+#take the mean of the scaled+centred data for each gene
+sig4_zscore <- as.matrix(rowMeans(expr_zscore_4))
+
+sig7_zscore <- as.matrix(rowMeans(expr_zscore_7))
+
+
+
+### Sex BOXPLOT -----------------------------------------------------------------------------------------------
+boxplot=cbind(sig4_zscore = sig4_zscore[,1], 
+              sig7_zscore = sig7_zscore[,1],
+              Disease = clinical_TB$disease, 
+                   Condition = as.character(clinical_TB$condition), 
+                   Age = clinical_TB$age, 
+                   Sex = clinical_TB$sex, 
+                   Smoking_status =clinical_TB$smoking_status)
+boxplot <- as.data.frame(boxplot)
+boxplot$sig4_zscore <- as.numeric(boxplot$sig4_zscore)
+boxplot$sig7_zscore <- as.numeric(boxplot$sig7_zscore)
+
+
+
+#Remove NAs
+# boxplot <- boxplot[-which(is.na(boxplot$Sex)),]
+
+
+
+for (score in c("sig7_zscore", "sig4_zscore")){
+  
+  boxplot2 <- boxplot[,c(which(colnames(boxplot) == score), 3:7)]
+  colnames(boxplot2)[1] <- "Score"
+  
+  if(score == "sig7_zscore"){
+    label = "7_Gene Signature"
+    signature_set = genesig_D_7
+
+  } 
+  
+  if(score == "sig4_zscore"){
+    label = "4_Gene Signature"
+    signature_set = genesig_D_4
+  }
+  
+  
+#Get P-values for WITHIN disease group comparisons (male vs female within each disease)
+stat.table <- boxplot2 %>%
+  group_by(Condition) %>% 
+  wilcox_test(Score ~ Sex,
+              paired = FALSE) %>%
+  add_xy_position(x = "Condition")
+stat.table$y.position <- max(boxplot2$Score) + 0.05*(max(boxplot2$Score))
+stat.table <- stat.table[which(stat.table$p < 0.05),]
+lowest.bracket <- max(boxplot2$Score) 
+    new.bracket.distance <- 0.35
+
+  for (i in 1:length(stat.table$y.position)){
+    stat.table$y.position[i] <- max(stat.table$y.position) + new.bracket.distance*i
+  }
+    
+    
+#Pairwise comparison BETWEEN Condition groups
+stat.table2 <-  boxplot2  %>%
+  group_by(Sex) %>%
+  wilcox_test(Score ~ Condition,
+              paired = FALSE) %>%
+  add_xy_position(x = "Condition", group = "Sex")
+stat.table2 <- stat.table2[which(stat.table2$p < 0.05),]
+
+#Current y positions of brackets are too close to eachother. double it
+
+  if(length(stat.table$y.position) < 1){
+      stat.table2$y.position <- max(boxplot2$Score) + 0.05*(max(boxplot2$Score))
+      for (i in 1:length(stat.table2$y.position)){
+        stat.table2$y.position[i] <- lowest.bracket + new.bracket.distance*i
+      }
+      }else{
+    for (i in 1:length(stat.table2$y.position)){
+    stat.table2$y.position[i] <- max(stat.table$y.position) + new.bracket.distance*i
+    }
+    }
+
+library(ggpubr)
+#Split into two plots, one for HC and one for TB and facet? or ggarrange 
+boxplotfinal2 <- ggplot(boxplot2, aes(
+  x = as.factor(Condition),
+  y = as.numeric(Score))) +
+  
+  theme_bw()+
+  
+  theme(axis.title = element_text(size = 20),
+        axis.text = element_text(size = 20),
+        legend.text = element_text(size = 20),
+        legend.title = element_text(size = 20),
+        title = element_text(size = 11.5),
+        legend.position = "bottom") +
+  
+  geom_boxplot(aes(fill = Sex)) +
+  scale_x_discrete(labels= c("TB_T0" = "TB_M0", 
+                             "TB_T2" = "TB_M2", 
+                             "TB_T4" = "TB_M4", 
+                             "TB_T6" = "TB_M6"))+
+      labs(title = paste0("TB ", label),
+             caption = paste0(str_wrap(paste("Signature:", paste(signature_set, collapse = ", "))), "\n",
+                              "Relative expression (2^-delta Ct) normalised with the average of B2M and GAPDH", "\n",
+         "Signature scores calculated as mean of z-scored expression of signature genes \n",
+                        "p values from Mann-Whitney U test shown"))+
+    ylab (label = "Signature Score") +
+  xlab (label = "Condition") +
+  
+  #within groups
+  stat_pvalue_manual(stat.table,
+                     label = "p",
+                     tip.length = 0.01,
+                     size = 4) +
+  #between groups
+  stat_pvalue_manual(stat.table2,
+                     label = "p",
+                     tip.length = 0.01,
+                     size = 4)
+
+  ggsave(boxplotfinal2, file = file.path(clinical_correlation.dir,  paste0("sex_mean_zscore",score,".png")),  
+         width = 2000,
+       height = 2000,
+       units = "px" )
+}
+
+
+### Smoking BOXPLOT -----------------------------------------------------------------------------------------------
+
+boxplot=cbind(sig4_zscore = sig4_zscore[,1], 
+              sig7_zscore = sig7_zscore[,1],
+              Disease = clinical_TB$disease, 
+                   Condition = as.character(clinical_TB$condition), 
+                   Age = clinical_TB$age, 
+                   Sex = clinical_TB$sex, 
+                   Smoking_status =clinical_TB$smoking_status)
+# 
+# boxplot <- as.data.frame(boxplot)
+# boxplot$sig4_zscore <- as.numeric(boxplot$sig4_zscore)
+# boxplot$sig7_zscore <- as.numeric(boxplot$sig7_zscore)
+
+#remove NAs
+# boxplot <- boxplot[-which(is.na(boxplot$Smoking_status)),]
+
+for (score in c("sig7_zscore", "sig4_zscore")){
+  
+  boxplot2 <- boxplot[,c(which(colnames(boxplot) == score), 3:7)]
+  colnames(boxplot2)[1] <- "Score"
+  boxplot2 <- as.data.frame(boxplot2)
+  boxplot2$Score <- as.numeric(boxplot2$Score)
+  
+  if(score == "sig7_zscore"){
+    label = "7_Gene Signature"
+    signature_set = genesig_D_7
+
+  } 
+  
+  if(score == "sig4_zscore"){
+    label = "4_Gene Signature"
+    signature_set = genesig_D_4
+  }
+  
+
+#Get P-values for WITHIN disease group comparisons (male vs female within each disease)
+stat.table <- boxplot2 %>%
+  group_by(Condition) %>% 
+  wilcox_test(Score ~ Smoking_status,
+              paired = FALSE) %>%
+  add_xy_position(x = "Condition")
+stat.table$y.position <- max(boxplot2$Score) + 0.05*(max(boxplot2$Score))
+stat.table <- stat.table[which(stat.table$p < 0.05),]
+lowest.bracket <- max(boxplot2$Score) 
+    new.bracket.distance <- 0.35
+
+  for (i in 1:length(stat.table$y.position)){
+    stat.table$y.position[i] <- max(stat.table$y.position) + new.bracket.distance*i
+  }
+    
+    
+#Pairwise comparison BETWEEN Condition groups
+stat.table2 <-  boxplot2  %>%
+  group_by(Smoking_status) %>%
+  wilcox_test(Score ~ Condition,
+              paired = FALSE) %>%
+  add_xy_position(x = "Condition", group = "Smoking_status")
+stat.table2 <- stat.table2[which(stat.table2$p < 0.05),]
+
+#Current y positions of brackets are too close to eachother. double it
+
+  if(length(stat.table$y.position) < 1){
+      stat.table2$y.position <- max(boxplot2$Score) + 0.05*(max(boxplot2$Score))
+      for (i in 1:length(stat.table2$y.position)){
+        stat.table2$y.position[i] <- lowest.bracket + new.bracket.distance*i
+      }
+      }else{
+    for (i in 1:length(stat.table2$y.position)){
+    stat.table2$y.position[i] <- max(stat.table$y.position) + new.bracket.distance*i
+    }
+    }
+# library(scales)
+# stat.table$p[3] <- scientific(stat.table$p[3], digits = 3)
+
+
+library(ggpubr)
+#Split into two plots, one for HC and one for TB and facet? or ggarrange 
+boxplotfinal2 <- ggplot(boxplot2, aes(
+  x = as.factor(Condition),
+  y = as.numeric(Score))) +
+  
+  theme_bw()+
+  
+  theme(axis.title = element_text(size = 20),
+        axis.text = element_text(size = 20),
+        legend.text = element_text(size = 20),
+        legend.title = element_text(size = 20),
+        title = element_text(size = 11.5),
+        legend.position = "bottom") +
+  
+  geom_boxplot(aes(fill = Smoking_status)) +
+  
+  scale_x_discrete(labels= c("TB_T0" = "TB_M0", 
+                             "TB_T2" = "TB_M2", 
+                             "TB_T4" = "TB_M4", 
+                             "TB_T6" = "TB_M6"))+
+  
+      labs(title = paste0("TB ", label),
+                        caption = paste0(str_wrap(paste("Signature:", paste(signature_set, collapse = ", "))), "\n",
+           "Relative expression (2^-delta Ct) normalised with the average of B2M and GAPDH", "\n",
+         "Signature scores calculated as mean of z-scored expression of signature genes \n",
+                        "p values from Mann-Whitney U test shown"))+
+    ylab (label = "Signature Score") +
+  xlab (label = "Condition") +
+  
+  #within groups
+  stat_pvalue_manual(stat.table,
+                     label = "p",
+                     tip.length = 0.01,
+                     size = 4) +
+  #between groups
+  stat_pvalue_manual(stat.table2,
+                     label = "p",
+                     tip.length = 0.01,
+                     size = 4)
+
+ggsave(boxplotfinal2, 
+       file = file.path(clinical_correlation.dir, paste0("smoking_mean_zscore_",score,".png")),  
+       width = 2800,
+       height = 2500,
+       units = "px" )
+
+}
+
+  ### Age BOXPLOT ----------------------------------------------------------------------------------------------------------  
+boxplot=cbind(sig4_zscore = sig4_zscore[,1], 
+              sig7_zscore = sig7_zscore[,1],
+              Disease = clinical_TB$disease, 
+                   Condition = as.character(clinical_TB$condition), 
+                   Age = clinical_TB$age, 
+                   Sex = clinical_TB$sex, 
+                   Smoking_status =clinical_TB$smoking_status)
+boxplot <- as.data.frame(boxplot)
+boxplot$sig4_zscore <- as.numeric(boxplot$sig4_zscore)
+boxplot$sig7_zscore <- as.numeric(boxplot$sig7_zscore)
+
+
+
+
+# table(clinical$sex)
+boxplot$age_category <- cut(as.numeric(boxplot$Age),
+                                 breaks=c(15, 25, 35, 45, 55, 65, Inf),
+                                 labels = c("15-24", "25-34", "35-44", "45-54", "55-64", "65+"),
+                                 right = FALSE) #range will include lower bound but not the upper bound
+
+for (score in c("sig7_zscore", "sig4_zscore")){
+  
+  boxplot2 <- boxplot[,c(which(colnames(boxplot) == score), 3:8)]
+  colnames(boxplot2)[1] <- "Score"
+    boxplot2$Score <- as.numeric(boxplot2$Score)
+
+  if(score == "sig7_zscore"){
+    label = "7_Gene Signature"
+    signature_set = genesig_D_7
+
+  } 
+  
+  if(score == "sig4_zscore"){
+    label = "4_Gene Signature"
+    signature_set = genesig_D_4
+  }
+  
+
+
+#### Group by Age (X AXIS = DISEASE)  -----------------------------------------------
+#Get P-values for WITHIN disease group comparisons (male vs female within each disease)
+stat.table <- boxplot2  %>%
+  group_by(Condition) %>% 
+  wilcox_test(Score ~ age_category,
+              paired = FALSE) %>%
+  add_xy_position(x = "Condition")
+lowest.bracket <- max(boxplot2$Score) 
+stat.table <- stat.table[which(stat.table$p < 0.05),]
+new.bracket.distance <- 0.3
+for (i in 1:length(stat.table$y.position)){
+  stat.table$y.position[i] <-lowest.bracket + new.bracket.distance*i
+}
+
+
+boxplot_withintimepoint <- ggplot(boxplot2, aes(
+  x = as.factor(Condition),
+  y = as.numeric(Score))
+) +
+  
+  theme_bw()+
+  
+  theme(axis.title = element_text(size = 20),
+        axis.text = element_text(size = 20),
+        legend.text = element_text(size = 20),
+        legend.title = element_text(size = 20),
+        title = element_text(size = 11.5)) +
+  
+  geom_boxplot(aes(fill = age_category)) +
+  
+  scale_fill_manual(values = c("15-24" = "yellow", 
+                               "25-34" = "skyblue", 
+                               "35-44" = "purple", 
+                               "45-54" = "pink", 
+                               "55-64" = "orange", 
+                               "65+" = "red"))+
+  scale_x_discrete(labels= c("TB_T0" = "TB_M0", 
+                             "TB_T2" = "TB_M2", 
+                             "TB_T4" = "TB_M4", 
+                             "TB_T6" = "TB_M6"))+
+  
+labs(title = paste0("TB ", label),
+     caption = paste0(str_wrap(paste("Signature:", paste(signature_set, collapse = ", "))), "\n",
+                      "Relative expression (2^-delta Ct) normalised with the average of B2M and GAPDH", "\n",
+         "Signature scores calculated as mean of z-scored expression of signature genes \n",
+                        "p values from Mann-Whitney U test shown"))+
+    ylab (label = "Signature Score") +
+  xlab (label = "Condition") +
+  
+  
+  #within groups
+  stat_pvalue_manual(stat.table,
+                     label = "p",
+                     tip.length = 0.01,
+                     size = 4) 
+
+ggsave(boxplot_withintimepoint, file = file.path(clinical_correlation.dir,  paste0("age_withintimepoint_mean_zscore_",score,".png")),  
+       width = 3000,
+       height = 2000,
+       units = "px" )
+
+
+
+#### Group by Age (X AXIS = age)  -----------------------------------------------
+#Get P-values for WITHIN age group comparisons (age vs age within disease)
+stat.table2 <- boxplot2  %>%
+  group_by(age_category) %>% 
+  wilcox_test(Score ~ Condition,
+              paired = FALSE) %>%
+  add_xy_position(x = "age_category")
+lowest.bracket <- max(boxplot2$Score) 
+stat.table2 <- stat.table2[which(stat.table2$p < 0.05),]
+new.bracket.distance <- 0.3
+for (i in 1:length(stat.table2$y.position)){
+  stat.table2$y.position[i] <-lowest.bracket + new.bracket.distance*i
+}
+
+
+boxplot_withinage <- ggplot(boxplot2, aes(
+  x = as.factor(age_category),
+  y = as.numeric(Score))
+) +
+  
+  theme_bw()+
+  
+  theme(axis.title = element_text(size = 20),
+        axis.text = element_text(size = 20),
+        legend.text = element_text(size = 20),
+        legend.title = element_text(size = 20),
+        title = element_text(size = 11.5)) +
+  
+  geom_boxplot(aes(fill = Condition)) +
+  
+  scale_fill_manual(values = c("TB_T0" = "#F8766D",
+                               "TB_T6" = "#B79F00",
+                               "TB_T4" = "#619CFF",
+                               "TB_T2" = "#F564E3"),
+                    
+                    labels= c("TB_T0" = "TB_M0", 
+                             "TB_T2" = "TB_M2", 
+                             "TB_T4" = "TB_M4", 
+                             "TB_T6" = "TB_M6"))+
+  
+labs(title = paste0("TB ", label),
+             caption = paste0(str_wrap(paste("Signature:", paste(signature_set, collapse = ", "))), "\n",
+         "Signature scores calculated as mean of z-scored expression of signature genes \n",
+                        "p < 0.05 from Mann-Whitney U test shown (timepoint comparisons within each age group)") )+
+    ylab (label = "Signature Score") +
+  xlab (label = "Age category") +
+  
+  
+  #within groups
+  stat_pvalue_manual(stat.table2,
+                     label = "p",
+                     tip.length = 0.01,
+                     size = 4) 
+
+ggsave(boxplot_withinage, file = file.path(clinical_correlation.dir, paste0("age_withinage_mean_zscore_",score,".png")),  
+       width = 3200,
+       height = 2300,
+       units = "px" )
+}
+

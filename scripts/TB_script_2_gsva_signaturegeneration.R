@@ -1746,6 +1746,7 @@ stat.table2 <-  boxplot2  %>%
 #Current y positions of brackets are too close to eachother. double it
 new.bracket.distance <- 0.1
 stat.table2 <- stat.table2[which(stat.table2$p < 0.05),]
+lowest.bracket <- max(boxplot2$Score) 
 
   if(length(stat.table$y.position) < 1){
       stat.table2$y.position <- max(boxplot2$Score) + 0.05*(max(boxplot2$Score))
@@ -2084,7 +2085,7 @@ boxplot_withinage <- ggplot(boxplot2, aes(
                         "p < 0.05 from Mann-Whitney U test shown")
        ) +
   ylab (label = "Enrichment Score") +
-  xlab (label = "Condition") +
+  xlab (label = "Age") +
 
   
   #between disease groups, within age
@@ -2508,10 +2509,10 @@ boxplot_withinage <- ggplot(boxplot2, aes(
   
 labs(title = paste0("TB ", label),
              caption = paste0(str_wrap(paste("Signature:", paste(signature_set, collapse = ", "))), "\n",
-         "Signature scores calculated as mean of z-scored expression of signature genes \n",
-                        "p < 0.05 from Mann-Whitney U test shown (timepoint comparisons within each age group)")
-)+
-    ylab (label = "Signature Score") +
+                        "Enrichment scores calculated from GSVA of signature genes \n",
+                        "p < 0.05 from Mann-Whitney U test shown (age group comparisons within each timepoint)")
+       ) +
+  ylab (label = "Enrichment Score") +
   xlab (label = "Age category") +
   
   

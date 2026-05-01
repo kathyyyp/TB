@@ -1854,6 +1854,8 @@ stat.table <- boxplot2  %>%
 stat.table <- stat.table[which(stat.table$p < 0.05),]
 stat.table$y.position <- max(boxplot2$Score) + 0.05*(max(boxplot2$Score))
 new.bracket.distance <- 0.3
+lowest.bracket <- max(boxplot2$Score) 
+
   for (i in 1:length(stat.table$y.position)){
     stat.table$y.position[i] <- max(stat.table$y.position) + new.bracket.distance*i
   }
@@ -2094,7 +2096,7 @@ boxplot_withinage <- ggplot(boxplot2, aes(
                         "p < 0.05 from Mann-Whitney U test shown")
          )+
     ylab (label = "Signature Score") +
-  xlab (label = "Condition") +
+  xlab (label = "Age") +
 
   
   #between disease groups, within age
