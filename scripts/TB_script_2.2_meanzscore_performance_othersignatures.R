@@ -425,7 +425,7 @@ disease_roc <- ggplot(roc_data, aes(x = FPR, y = TPR, color = legend)) +
     y = "TPR (Sensitivity)",
     color = "Signature",
     # caption = paste0("ROC showing performance of a logistic regression model predicting TB_T0 vs HC_TO using the signature score \n",
-    caption = paste0("ROC showing performance of a logistic regression model predicting TB_M0 vs HC_MO using the signature score \n",
+    caption = paste0("ROC showing performance of a logistic regression model predicting TB_M0 vs HC_M0 using the signature score \n",
     "Signature scores calculated as mean of Z-scored expression of signature genes"))
 
 ggsave(disease_roc, filename = file.path(this.roc.dir, "disease_roc.png"), 
@@ -498,7 +498,9 @@ res_table[,-1] <- lapply(res_table[,-1], as.numeric)
     panel_forest <- annotate_figure(
       panel_forest,
       top = text_grob("Performance of published signatures", size = 24),
-      bottom = text_grob(paste0("Forest plot showing AUCs for differentiating TB_T0 vs HC_T0 \nin our dataset",
+      # bottom = text_grob(paste0("Forest plot showing AUCs for differentiating TB_T0 vs HC_T0 \nin our dataset",
+        bottom = text_grob(paste0("Forest plot showing AUCs for differentiating TB_M0 vs HC_M0 \nin our dataset",
+
                                 "\nSenstivity and specificity calculated at Youden threshold \n",
                                 "95% confidence intervals shown"),
                                 size = 10, hjust = 0, x = 0)
@@ -1014,7 +1016,9 @@ res_table[,-1] <- lapply(res_table[,-1], as.numeric)
     panel_forest <- annotate_figure(
       panel_forest,
       top = text_grob("Performance of published signatures", size = 24),
-      bottom = text_grob(paste0("Forest plot showing AUCs for differentiating HC_T6 vs HC_T0 \nin our dataset",
+      # bottom = text_grob(paste0("Forest plot showing AUCs for differentiating HC_T6 vs HC_T0 \nin our dataset",
+      bottom = text_grob(paste0("Forest plot showing AUCs for differentiating HC_M6 vs HC_M0 \nin our dataset",
+
                                 "\nSenstivity and specificity calculated at Youden threshold \n",
                                 "95% confidence intervals shown"),
                                 size = 10, hjust = 0, x = 0)
