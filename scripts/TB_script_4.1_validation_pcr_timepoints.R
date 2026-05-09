@@ -22,6 +22,7 @@ library(rstatix)
 library(ggpubr)
 library(readxl)
 library(limma)
+library(ggrepel)
 
 # ================================================================================== #
 # B. SET UP DIRECTORY & OUTPUT PATHS ===============================================
@@ -386,7 +387,8 @@ for (hk in names(listof_normdata)){
   expr_long <- cbind(expr_long, clinical[match(expr_long$sample_id, clinical$sample),])
   
   
-  
+    expr_long$gene <- factor(expr_long$gene, levels = c("IFITM1", "CD274", "TAP1", "GBP5", "GBP2", "S100A8", "FCGR1CP"))
+
   ## Per-comparison filtering for Wilcoxin paired statistical test ---------------------------------------------------------------------------------------
   #First, need to create a function for per-comparison filtering
   #Create function to get ONLY paired data between two groups 
@@ -571,6 +573,14 @@ for (hk in names(listof_normdata)){
     ) +
     facet_wrap(~gene, scales="free_y", ncol = 7) +
     
+          scale_color_discrete(labels= c(
+            "HC_T0" = "HC_M0",
+            "HC_T6" = "HC_M6",
+            "TB_T0" = "TB_M0",
+            "TB_T2" = "TB_M2", 
+            "TB_T4" = "TB_M4",
+            "TB_T6" = "TB_M6"))+
+    
     guides(color = guide_legend(nrow = 1))+
     ylab("Expression (2^-delta Ct)") +
     xlab("Disease") +
@@ -613,10 +623,10 @@ for (hk in names(listof_normdata)){
     if(number_of_genes == "4"){
       expr_set <- expr_set[-c(which(row.names(expr_set) == "S100A8" | row.names(expr_set) == "CD274" | row.names(expr_set) == "IFITM1")),]
     }
-    
-    if(number_of_genes == "3"){
-      expr_set <- expr_set[-c(which(row.names(expr_set) == "S100A8" | row.names(expr_set) == "CD274" | row.names(expr_set) == "IFITM1" | row.names(expr_set) == "TAP1" )),]
-    }
+    # 
+    # if(number_of_genes == "3"){
+    #   expr_set <- expr_set[-c(which(row.names(expr_set) == "S100A8" | row.names(expr_set) == "CD274" | row.names(expr_set) == "IFITM1" | row.names(expr_set) == "TAP1" )),]
+    # }
     #transpose for scaling
     expr_set<-t(expr_set)
     
@@ -663,7 +673,7 @@ for (hk in names(listof_normdata)){
   # listofstandardised_scores[["6_genes"]] <- scaledcentered_mean_func(number_of_genes = "6")
   # listofstandardised_scores[["5_genes"]] <- scaledcentered_mean_func(number_of_genes = "5")
   listofstandardised_scores[["4_genes"]] <- scaledcentered_mean_func(number_of_genes = "4")
-    listofstandardised_scores[["3_genes"]] <- scaledcentered_mean_func(number_of_genes = "3")
+    # listofstandardised_scores[["3_genes"]] <- scaledcentered_mean_func(number_of_genes = "3")
 
   listofresults[[hk]] <- listofstandardised_scores
   
@@ -869,6 +879,13 @@ for (hk in names(listofresults)){
                  geom = "point", shape = 21, size =4,
                  show.legend = FALSE) +
     
+              scale_x_discrete(labels= c(
+            "HC_T0" = "HC_M0",
+            "HC_T6" = "HC_M6",
+            "TB_T0" = "TB_M0",
+            "TB_T2" = "TB_M2", 
+            "TB_T4" = "TB_M4",
+            "TB_T6" = "TB_M6"))+
     
     labs(title = paste0("Treatment Timepoints Signature Performance"),
          caption = paste("Signature:", paste0(gene_list, collapse = ","), "\n",
@@ -1071,12 +1088,13 @@ for (hk in names(listofresults)){ # housekeeping gene loop
   )
   
   
-  
   # Disease ROC
   disease_roc_data <- roc_data[which(roc_data$Comparison == "HC_T0 vs TB_T0" |
                                        roc_data$Comparison == "HC_T0 vs HC_T6"), ]
   
   
+disease_roc_data$legend <- gsub("_T", "_M", disease_roc_data$legend)
+
   #set each comparison to a colour
   comparison_levels <- unique(disease_roc_data$legend)
   roc_palette <- setNames(
@@ -1084,7 +1102,7 @@ for (hk in names(listofresults)){ # housekeeping gene loop
     comparison_levels
   )
   
-  
+
   disease_roc <- ggplot(disease_roc_data, aes(x = FPR, 
                                               y = TPR, 
                                               color = legend)) +
@@ -1098,8 +1116,7 @@ for (hk in names(listofresults)){ # housekeeping gene loop
           axis.text = element_text(size = 24),
           legend.text = element_text(size = 16),
           title = element_text(size = 20)) +
-    scale_color_manual(values = roc_palette) +
-    
+    scale_color_manual(values = roc_palette)+
     labs(
       title = "ROC - TB vs HC",
       x = "FPR (1 - Specificity)",
@@ -1120,6 +1137,8 @@ for (hk in names(listofresults)){ # housekeeping gene loop
   timepoints_roc_data <- roc_data[which(roc_data$Comparison != "HC_T0 vs TB_T0" & 
                                           roc_data$Comparison != "HC_T0 vs HC_T6"), ]
   
+  timepoints_roc_data$legend <- gsub("_T", "_M",   timepoints_roc_data$legend )
+
   #set each comparison to a colour
   comparison_levels <- unique(timepoints_roc_data$legend)
   roc_palette <- setNames(
@@ -1127,7 +1146,7 @@ for (hk in names(listofresults)){ # housekeeping gene loop
     comparison_levels
   )
   
-  
+
   timepoints_roc <- ggplot(timepoints_roc_data, aes(x = FPR, y = TPR, color = legend)) +
     geom_line(size = 1.2) +
     theme_bw() +
@@ -1139,8 +1158,7 @@ for (hk in names(listofresults)){ # housekeeping gene loop
           axis.text = element_text(size = 24),
           legend.text = element_text(size = 16),
           title = element_text(size = 20)) +
-    scale_color_manual(values = roc_palette) +
-    
+    scale_color_manual(values = roc_palette)+
     labs(
       title = "ROC - TB treatment timepoints",
       x = "FPR (1 - Specificity)",
@@ -1187,29 +1205,41 @@ for (hk in names(listofresults)){ # housekeeping gene loop
   for(e in c("HC", "TB")){
     res_table <- read.csv(file.path(this.output.dir, paste0(hk,"_",g,"_mean_ztransformed_scores_forestplot_res_table.csv")), row.names = 1)
     
-    colours<- c(
-      "HC_T0 vs TB_T0" = "#F8766D",
-      "HC_T0 vs HC_T6" = "#00BA38",
-      "TB_T6 vs TB_T0" = "#B79F00",
-      "TB_T4 vs TB_T0" = "#619CFF",
-      "TB_T2 vs TB_T0" = "#F564E3"
+    res_table$comparison <- gsub("_T", "_M",   res_table$comparison )
+
+    # colours<- c(
+    #  "#F8766D",  #"HC_T0 vs TB_T0" 
+    #  "#00BA38", #"HC_T0 vs HC_T6"
+    #  "#B79F00", # "TB_T6 vs TB_T0" 
+    #  "#619CFF", #"TB_T4 vs TB_T0" 
+    #  "#F564E3" #"TB_T2 vs TB_T0" 
+    # )
+    
+        colours<- c(
+      "HC_M0 vs TB_M0" = "#F8766D",
+      "HC_M0 vs HC_M6" = "#00BA38",
+      "TB_M6 vs TB_M0" = "#B79F00",
+      "TB_M4 vs TB_M0" = "#619CFF",
+      "TB_M2 vs TB_M0" = "#F564E3"
     )
     
+    
+
     if(e == "HC"){
-      res_table <- res_table[which(res_table$comparison %in% c("HC_T0 vs TB_T0", "HC_T0 vs HC_T6")), ]
+      res_table <- res_table[which(res_table$comparison %in% c("HC_M0 vs TB_M0", "HC_M0 vs HC_M6")), ]
       colours <- colours[1:2]
     }
     
     
     if(e == "TB"){
-      res_table <- res_table[-which(res_table$comparison %in% c("HC_T0 vs TB_T0", "HC_T0 vs HC_T6")), ]
+      res_table <- res_table[-which(res_table$comparison %in% c("HC_M0 vs TB_M0", "HC_M0 vs HC_M6")), ]
       colours <- colours[3:5]
       
     }
     
     
     
-    
+ 
     auc_plot <- res_table %>% 
       ggplot(aes(y = comparison)) + 
       theme_bw() +

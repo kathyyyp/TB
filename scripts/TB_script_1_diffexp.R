@@ -193,6 +193,7 @@ for (x in 1:2){
 
 listofvolcano<- list()
 
+nameconvert$contrast <- gsub("_T", "_M", nameconvert$contrast)
 for (i in names(listoftT)){
   volcano <- ggplot(listoftT[[i]], aes(x = logFC, y = -log10(P.Value))) +
     geom_point(aes(color = legend)) +

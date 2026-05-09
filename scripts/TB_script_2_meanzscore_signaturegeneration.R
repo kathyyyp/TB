@@ -124,7 +124,7 @@ clinical_wide <- as.data.frame(pivot_wider(clinical[,c("PID", "Disease", "Timepo
 
 ### Get upregulated genes ############
 # Get all 16 upregulated genes from our TB_T0 - HC_T0 differential expression analysis
-diffexp_TBT0_vs_HCT0 <- read.csv(file.path(output.dir, "results", "tT2", "contrast1.csv"))
+diffexp_TBT0_vs_HCT0 <- read.csv(file.path(output.dir, "1_differential_expression", "tT2", "contrast1.csv"))
 T0_upregulated <- diffexp_TBT0_vs_HCT0[which(diffexp_TBT0_vs_HCT0$legend == "Upregulated"), "genename"]
 
 gene_set_of_interest <- T0_upregulated 
@@ -1099,7 +1099,8 @@ for (contrast in contrasts){
       aucs = auc_values)
   } ))
   
-  
+      contrast  <- gsub("_T", "_M", contrast)
+
   
   boxplot <- ggplot(nested_res_long, aes(
     x = factor(name),
@@ -1280,6 +1281,7 @@ roc_data[which(roc_data$min_or_max == "min"), "min_or_max"] <- "Worst"
 roc_data[which(roc_data$min_or_max == "max"), "min_or_max"] <- "Best"
 
 roc_data$group <- gsub("_.*", "", roc_data$comparison)
+roc_data$group <- gsub("T([0-9]+)", "M\\1", roc_data$group) #replace T0,T2,T4,T6 with M0,M2,M4,M6
 
 rocplot <- ggplot(roc_data, aes(x = FPR,
                                 y = TPR, 
@@ -1466,6 +1468,7 @@ stat.table.all <- rbind(stat.table, stat.table2)
 lowest_bracket <- max(boxplot_mean_zscore$mean_zscore) + 0.05*(max(boxplot_mean_zscore$mean_zscore))
 stat.table.all$y.position <- seq(lowest_bracket, by= 0.3, length.out = nrow(stat.table.all))
 
+boxplot_mean_zscore$group <- gsub("_T", "_M", boxplot_mean_zscore$group)
 
 ## Boxplot ggplot2 ---------------------------------------------------------------------------------------
 boxplotfinal <- ggplot(boxplot_mean_zscore, aes(
@@ -1583,7 +1586,7 @@ for (i in top_features_16[1:7]){
 }
 
 
-
+p$condition <- gsub("_T", "_M", p$condition)
 
 heatmapplot <- ggplot(p, aes(x=Sample, y=Gene_label, fill=expression_z))+
   geom_tile(colour="white", linewidth=0.1)+

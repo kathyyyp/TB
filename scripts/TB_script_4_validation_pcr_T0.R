@@ -22,6 +22,7 @@ library(ggfortify)
 library(rstatix)
 library(ggpubr)
 library(readxl)
+library(ggrepel)
 
 # ================================================================================== #
 # B. SET UP DIRECTORY & OUTPUT PATHS ===============================================
@@ -288,6 +289,7 @@ for (hk in names(listof_normdata)){
   
   expr_long <- cbind(expr_long, clinical[match(expr_long$sample_id, clinical$sample),])
   
+  expr_long$gene <- factor(expr_long$gene, levels = c("IFITM1", "CD274", "TAP1", "GBP5", "GBP2", "S100A8", "FCGR1CP"))
   
   boxplot_theme <- theme(axis.title = element_text(size = 20),
                          axis.text = element_text(size = 15),
@@ -318,6 +320,9 @@ for (hk in names(listof_normdata)){
     xlab("Disease") +
     labs(caption = paste("Relative expression normalized to", hk)) +
     
+      scale_color_discrete(labels= c("HC_T0" = "HC_M0", 
+                             "TB_T0" = "TB_M0"))+
+  
     scale_y_continuous(expand = expansion(mult = c(0.05, 0.15)))
   
   
@@ -398,7 +403,7 @@ for (hk in names(listof_normdata)){
   # listofstandardised_scores[["6_genes"]] <- scaledcentered_mean_func(number_of_genes = "6")
   # listofstandardised_scores[["5_genes"]] <- scaledcentered_mean_func(number_of_genes = "5")
   listofstandardised_scores[["4_genes"]] <- scaledcentered_mean_func(number_of_genes = "4")
-      listofstandardised_scores[["3_genes"]] <- scaledcentered_mean_func(number_of_genes = "3")
+      # listofstandardised_scores[["3_genes"]] <- scaledcentered_mean_func(number_of_genes = "3")
 
   listofresults[[hk]] <- listofstandardised_scores
   
@@ -509,10 +514,15 @@ for (hk in names(listofresults)){
                  geom = "point", shape = 21, size =4,
                  show.legend = FALSE) +
     
+      scale_color_discrete(labels= c("HC_T0" = "HC_M0", 
+                             "TB_T0" = "TB_M0"))+
+  
     
-    labs(title = paste0("HB_T0 vs TB_T0 expression"),
-         caption = paste("Signature:", paste0(gene_list, collapse = ","), "\n",
-                         "Relative expression normalized to", hk)) +
+    labs(
+      # title = "HB_T0 vs TB_T0 expression",
+      title = "HC_M0 vs TB_M0 expression",
+      caption = paste("Signature:", paste0(gene_list, collapse = ","), "\n",
+                      "Relative expression normalized to", hk)) +
     ylab (label = "Mean of scaled & centered expression") +
     xlab (label = "Condition") 
   
@@ -576,8 +586,8 @@ for (hk in names(listofresults)){
     "7_genes:", paste0(listofstandardised_scores[["7_genes"]][["gene_list"]], collapse = ","), "\n" ,
     # "6_genes:", paste0(listofstandardised_scores[["6_genes"]][["gene_list"]], collapse = ","), "\n",
     # "5_genes:", paste0(listofstandardised_scores[["5_genes"]][["gene_list"]], collapse = ","), "\n",
-    "4_genes:", paste0(listofstandardised_scores[["4_genes"]][["gene_list"]], collapse = ","), "\n",
-    "3_genes:", paste0(listofstandardised_scores[["3_genes"]][["gene_list"]], collapse = ","), "\n"
+    "4_genes:", paste0(listofstandardised_scores[["4_genes"]][["gene_list"]], collapse = ","), "\n"#,
+    # "3_genes:", paste0(listofstandardised_scores[["3_genes"]][["gene_list"]], collapse = ","), "\n"
 
   )
   
@@ -697,7 +707,8 @@ roc_data <- roc_data %>%
           legend.text = element_text(size = 16),
           title = element_text(size = 20)) +
     labs(
-      title = "ROC - HC_T0 vs TB_T0",
+      # title = "ROC - HC_T0 vs TB_T0",
+      title = "ROC - HC_M0 vs TB_M0",
       x = "FPR (1 - Specificity)",
       y = "TPR (Sensitivity)",
       color = "Comparison",
@@ -738,8 +749,8 @@ for (hk in names(listofresults)){ # housekeeping gene loop
   # )
   gene_list <- paste0(
     "7_genes:", paste0(listofstandardised_scores[["7_genes"]][["gene_list"]], collapse = ","), "\n",
-    "4_genes:", paste0(listofstandardised_scores[["4_genes"]][["gene_list"]], collapse = ","), "\n",
-        "3_genes:", paste0(listofstandardised_scores[["3_genes"]][["gene_list"]], collapse = ","), "\n"
+    "4_genes:", paste0(listofstandardised_scores[["4_genes"]][["gene_list"]], collapse = ","), "\n" #,
+        # "3_genes:", paste0(listofstandardised_scores[["3_genes"]][["gene_list"]], collapse = ","), "\n"
 
   )
   forestplot_theme <- theme(axis.title = element_text(size =  16),
@@ -752,8 +763,8 @@ for (hk in names(listofresults)){ # housekeeping gene loop
   
   colours<- c(
     "7_genes" = "#009E73",
-    "4_genes" = "#CC79A7",
-    "3_genes" = "#0072B2"
+    "4_genes" = "#CC79A7" #,
+    # "3_genes" = "#0072B2"
     )
 
   auc_plot <- res_table %>% 
@@ -805,14 +816,14 @@ for (hk in names(listofresults)){ # housekeeping gene loop
   
   panel_forest <- annotate_figure(
     panel_forest,
-    top = text_grob("HC_T0 vs TB_T0", size = 14, hjust = 0, x = 0),
+    top = text_grob("HC_M0 vs TB_M0", size = 14, hjust = 0, x = 0),
     bottom = text_grob(paste0("Normalised to ",hk,"\nSenstivity and specificity calculated at Youden threshold \n",
                               gene_list), 
                        size = 12, hjust = 0, x = 0)
   )
   
   
-  ggsave(panel_forest, filename= file.path(this.figures.dir, paste0(hk," _forestplot_panel.png")),
+  ggsave(panel_forest, filename= file.path(this.figures.dir, paste0(hk,"_forestplot_panel.png")),
          width = 15, height = 20, units = "cm",   bg = "white"  )
   
   # } #close gene signature loop

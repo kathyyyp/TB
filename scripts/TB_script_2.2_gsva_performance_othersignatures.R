@@ -408,7 +408,8 @@ disease_roc <- ggplot(roc_data, aes(x = FPR, y = TPR, color = legend)) +
     x = "FPR (1 - Specificity)",
     y = "TPR (Sensitivity)",
     color = "Signature",
-    caption = paste0("ROC showing performance of a logistic regression model predicting TB_T0 vs HC_TO using the enrichment score \n",
+    # caption = paste0("ROC showing performance of a logistic regression model predicting TB_T0 vs HC_TO using the enrichment score \n",
+    caption = paste0("ROC showing performance of a logistic regression model predicting TB_M0 vs HC_M0 using the enrichment score \n",
     "Enrichment scores calculated from GSVA of signature genes"))
 
 ggsave(disease_roc, filename = file.path(this.roc.dir, "disease_roc.png"), 
@@ -480,7 +481,8 @@ res_table[,-1] <- lapply(res_table[,-1], as.numeric)
     panel_forest <- annotate_figure(
       panel_forest,
       top = text_grob("Performance of published signatures", size = 24),
-      bottom = text_grob(paste0("Forest plot showing AUCs for differentiating TB_T0 vs HC_T0 \nin our dataset",
+      # bottom = text_grob(paste0("Forest plot showing AUCs for differentiating TB_T0 vs HC_T0 \nin our dataset",
+      bottom = text_grob(paste0("Forest plot showing AUCs for differentiating TB_M0 vs HC_M0 \nin our dataset",
                                 "\nSenstivity and specificity calculated at Youden threshold \n",
                                 "95% confidence intervals shown"),
                                 size = 10, hjust = 0, x = 0)
@@ -545,7 +547,8 @@ res_table[,-1] <- lapply(res_table[,-1], as.numeric)
     panel_forest <- annotate_figure(
       panel_forest,
       top = text_grob("Performance of published signatures", size = 18),
-      bottom = text_grob(paste0("Forest plot showing AUCs for differentiating TB_T0 vs HC_T0 \nin our dataset",
+      # bottom = text_grob(paste0("Forest plot showing AUCs for differentiating TB_T0 vs HC_T0 \nin our dataset",
+      bottom = text_grob(paste0("Forest plot showing AUCs for differentiating TB_M0 vs HC_M0 \nin our dataset",
                                 "\nSenstivity and specificity calculated at Youden threshold \n",
                                 "95% confidence intervals shown"),
                                 size = 10, hjust = 0, x = 0)
@@ -647,7 +650,6 @@ for (i in colnames(boxplot_gsva)[1:(ncol(boxplot_gsva) - 1)]){
   lowest_bracket <- max(boxplot_gsva[, i]) + 0.05*(max(boxplot_gsva[, i]))
   stat.table.gsva$y.position <- lowest_bracket
   
-  
   boxplotfinal2 <- ggplot(boxplot_gsva, aes(
     x = factor(group, level = x_order),
     # x = factor(group),
@@ -669,7 +671,10 @@ for (i in colnames(boxplot_gsva)[1:(ncol(boxplot_gsva) - 1)]){
                  geom = "point", shape = 21, size =4,
                  show.legend = TRUE) +
     
-    stat_pvalue_manual(stat.table.gsva,
+    scale_color_discrete(labels= c("HC_T0" = "HC_M0", 
+                                   "HC_T6" = "HC_M6"))+
+    
+      stat_pvalue_manual(stat.table.gsva,
                        label = "p",
                        tip.length = 0.01,
                        size = 6)+
@@ -680,7 +685,7 @@ for (i in colnames(boxplot_gsva)[1:(ncol(boxplot_gsva) - 1)]){
     theme(axis.text.x = element_text(size = 15))+
     labs(title = paste0("TB Signature Analysis: ", i),
          caption = paste0(str_wrap(paste("Signature:", paste(overlap[[i]], collapse = ", "))), "\n",
-         "Signature scores calculated from GSVA of signature genes \n",
+         "Enrichment scores calculated from GSVA of signature genes \n",
          "P values from Mann-Whitney U test shown")
          )+
     ylab (label = "Enrichment Score") +
@@ -709,25 +714,26 @@ stat.table <- boxplot_gsva_long  %>%
               paired = FALSE,
               p.adjust.method = "BH") %>%
   add_xy_position(x = "signature") #this is the x-axis/the grouping variable
-
-y_pos <- boxplot_gsva_long %>%
-  group_by(signature) %>%
-  summarise(y.position = max(gsva))
-
-  # # stat.table <- stat.table[which(stat.table$p < 0.05),]
-  stat.table$y.position <- y_pos$y.position + 0.05
+# 
+# y_pos <- boxplot_gsva_long %>%
+#   group_by(signature) %>%
+#   summarise(y.position = max(gsva))
+# 
+#   # # stat.table <- stat.table[which(stat.table$p < 0.05),]
+#   stat.table$y.position <- y_pos$y.position + 0.05
 
     boxplot_gsva_long <- as.data.frame(boxplot_gsva_long)
 
   stat.table$signature <- factor(stat.table$signature, levels = x_order)
   
+
 boxplotcombined <- ggplot(boxplot_gsva_long, aes(
     x = signature,
     y = gsva,
     color = group)) +
     
     theme_bw()+
-    
+
     theme(axis.title = element_text(size = 24),
           axis.text = element_text(size = 24),
           axis.text.x = element_text(angle = 45, hjust = 1),
@@ -753,7 +759,10 @@ boxplotcombined <- ggplot(boxplot_gsva_long, aes(
                        label = "p",
                        tip.length = 0.01,
                        size = 6)+
-    
+  
+            scale_color_discrete(labels= c("HC_T0" = "HC_M0", 
+                                   "HC_T6" = "HC_M6"))+
+  
     labs(title = paste0("Performance of Published Signatures"),
          color = "Disease",
          caption = paste0(
@@ -899,11 +908,13 @@ hc_roc <- ggplot(roc_data, aes(x = FPR, y = TPR, color = legend)) +
         plot.caption.position = "plot" 
 ) +
   labs(
-    title = paste("ROC (Publicly available signatures) - HC_T6 vs HC_T0"),
+    # title = paste("ROC (Publicly available signatures) - HC_T6 vs HC_T0"),
+    title = paste("ROC (Publicly available signatures) - HC_M6 vs HC_M0"),
     x = "FPR (1 - Specificity)",
     y = "TPR (Sensitivity)",
     color = "Signature",
-    caption = paste0("ROC showing performance of a logistic regression model predicting HC_T6 vs HC_TO using the enrichment score \n",
+    # caption = paste0("ROC showing performance of a logistic regression model predicting HC_T6 vs HC_TO using the enrichment score \n",
+    caption = paste0("ROC showing performance of a logistic regression model predicting HC_M6 vs HC_M0 using the enrichment score \n",
     "Enrichment scores calculated from GSVA of signature genes"))
 
 ggsave(hc_roc, filename = file.path(this.roc.dir, "hc_roc.png"), 
@@ -975,7 +986,8 @@ res_table[,-1] <- lapply(res_table[,-1], as.numeric)
     panel_forest <- annotate_figure(
       panel_forest,
       top = text_grob("Performance of published signatures", size = 24),
-      bottom = text_grob(paste0("Forest plot showing AUCs for differentiating HC_T6 vs HC_T0 \nin our dataset",
+      # bottom = text_grob(paste0("Forest plot showing AUCs for differentiating HC_T6 vs HC_T0 \nin our dataset",
+      bottom = text_grob(paste0("Forest plot showing AUCs for differentiating HC_M6 vs HC_M0 \nin our dataset",
                                 "\nSenstivity and specificity calculated at Youden threshold \n",
                                 "95% confidence intervals shown"),
                                 size = 10, hjust = 0, x = 0)
@@ -1040,7 +1052,8 @@ res_table[,-1] <- lapply(res_table[,-1], as.numeric)
     panel_forest <- annotate_figure(
       panel_forest,
       top = text_grob("Performance of published signatures", size = 18),
-      bottom = text_grob(paste0("Forest plot showing AUCs for differentiating HC_T6 vs HC_T0 \nin our dataset",
+      # bottom = text_grob(paste0("Forest plot showing AUCs for differentiating HC_T6 vs HC_T0 \nin our dataset",
+      bottom = text_grob(paste0("Forest plot showing AUCs for differentiating HC_M6 vs HC_M0 \nin our dataset",
                                 "\nSenstivity and specificity calculated at Youden threshold \n",
                                 "95% confidence intervals shown"),
                                 size = 10, hjust = 0, x = 0)
@@ -1183,15 +1196,17 @@ for (i in colnames(boxplot_gsva)[1:(ncol(boxplot_gsva) - 1)]){
                 size = 2.5, 
                 width = 0.3) +
     
-    
+    scale_x_discrete(labels = 
+                           c("TB_T0" = "TB_M0",
+                             "TB_T2" = "TB_M2",
+                             "TB_T4" = "TB_M4",
+                             "TB_T6" = "TB_M6")) +
     
     stat_summary(fun.y = mean, fill = "red",
                  geom = "point", shape = 21, size =4,
                  show.legend = TRUE) +
     
-    # # scale_x_discrete(labels= c("Control" = "Control", "Mild.moderate.COPD" = "mCOPD", "Severe.COPD" = "sCOPD"))+
-    # scale_y_continuous(expand = c(0.07, 0, 0.07, 0)) +
-    
+
     theme(axis.text.x = element_text(size = 15))+
     labs(title = paste0("TB Signature Analysis: ", i),
          caption = paste0(str_wrap(paste("Signature:", paste(overlap[[i]], collapse = ", "))), "\n",
@@ -1231,24 +1246,27 @@ stat.table <- boxplot_gsva_long  %>%
               p.adjust.method = "BH") %>%
   add_xy_position(x = "signature") #this is the x-axis/the grouping variable
 
+# detach("package:plyr", unload = TRUE)
+
 #max y pos for each group
 y_pos <- boxplot_gsva_long %>%
-  group_by(signature) %>%
-  summarise(ymax = max(gsva))
+  dplyr::group_by(signature) %>%
+  dplyr::summarise(ymax = max(gsva))
 
   stat.table <- stat.table[which(stat.table$p < 0.05),]
 stat.table <- stat.table %>%
   left_join(y_pos, by = "signature") %>%
   group_by(signature) %>%
   arrange(signature) %>%  
-  mutate(
-    y.position = (ymax+ymax*0.1) + 0.12 * (row_number() - 1)
+  dplyr::mutate(
+    y.position = (ymax+ymax*0.1) + 0.12 * (dplyr::row_number() - 1)
   ) %>%
   ungroup()
 
     boxplot_gsva_long <- as.data.frame(boxplot_gsva_long)
 
   stat.table$signature <- factor(stat.table$signature, levels = x_order)
+  
   
 boxplotcombined <- ggplot(boxplot_gsva_long, aes(
     x = signature,
@@ -1282,6 +1300,12 @@ boxplotcombined <- ggplot(boxplot_gsva_long, aes(
                        label = "p",
                        tip.length = 0.01,
                        size = 6)+
+    
+    scale_color_discrete(labels = 
+                           c("TB_T0" = "TB_M0",
+                             "TB_T2" = "TB_M2",
+                             "TB_T4" = "TB_M4",
+                             "TB_T6" = "TB_M6")) +
     
     labs(title = paste0("Performance of Published Signatures"),
          color = "Disease",
@@ -1445,6 +1469,8 @@ roc_data <- roc_data %>%
     # rorder legend factor based on signature factor order
     legend = factor(legend, levels = legend[match(levels(Comparison), legend_first_word)])
   )
+roc_data$legend <- gsub("_T", "_M", roc_data$legend)
+
 
   timepoint_roc <- ggplot(roc_data, aes(x = FPR, y = TPR, color = legend)) +
     geom_line(size = 1.2) +
@@ -1516,7 +1542,10 @@ res_table[,-c(1, ncol(res_table))] <- lapply(res_table[,-c(1, ncol(res_table))],
                        ),
                    size = 1,
                    position = position_dodge(0.5)) +
-          scale_colour_manual(values = colours)+
+          scale_colour_manual(values = colours,
+                           labels = c("TB_T2 vs TB_T0" = "TB_M2 vs TB_M0",
+                                      "TB_T4 vs TB_T0" = "TB_M4 vs TB_M0",
+                                      "TB_T6 vs TB_T0" = "TB_M6 vs TB_M0")) +
 
       forestplot_theme +
            theme(axis.text.x = element_blank(),
@@ -1536,7 +1565,10 @@ res_table[,-c(1, ncol(res_table))] <- lapply(res_table[,-c(1, ncol(res_table))],
                          color = comparison),
                      size = 1,
                      position = position_dodge(0.5)) +
-                 scale_colour_manual(values = colours)+
+                 scale_colour_manual(values = colours,
+                                     labels = c("TB_T2 vs TB_T0" = "TB_M2 vs TB_M0",
+                                      "TB_T4 vs TB_T0" = "TB_M4 vs TB_M0",
+                                      "TB_T6 vs TB_T0" = "TB_M6 vs TB_M0")) +
 
       forestplot_theme +
        theme(axis.text.x = element_blank(),
@@ -1556,7 +1588,10 @@ res_table[,-c(1, ncol(res_table))] <- lapply(res_table[,-c(1, ncol(res_table))],
                          color = comparison),
                      size = 1,
                      position = position_dodge(0.5)) +
-          scale_colour_manual(values = colours)+
+          scale_colour_manual(values = colours,
+                              labels = c("TB_T2 vs TB_T0" = "TB_M2 vs TB_M0",
+                                      "TB_T4 vs TB_T0" = "TB_M4 vs TB_M0",
+                                      "TB_T6 vs TB_T0" = "TB_M6 vs TB_M0")) +
   guides(colour = guide_legend(nrow = 2)) +
 
       theme(axis.title = element_text(size =  16),
@@ -1604,7 +1639,10 @@ res_table[,-c(1, ncol(res_table))] <- lapply(res_table[,-c(1, ncol(res_table))],
                        ),
                    size = 1,
                    position = position_dodge(0.5)) +
-          scale_colour_manual(values = colours)+
+          scale_colour_manual(values = colours,
+                              labels = c("TB_T2 vs TB_T0" = "TB_M2 vs TB_M0",
+                                      "TB_T4 vs TB_T0" = "TB_M4 vs TB_M0",
+                                      "TB_T6 vs TB_T0" = "TB_M6 vs TB_M0")) +
 
       forestplot_theme +
     scale_x_continuous(limits = c(0, 1) )+
@@ -1622,7 +1660,10 @@ res_table[,-c(1, ncol(res_table))] <- lapply(res_table[,-c(1, ncol(res_table))],
                          color = comparison),
                      size = 1,
                      position = position_dodge(0.5)) +
-                 scale_colour_manual(values = colours)+
+                 scale_colour_manual(values = colours,
+                                     labels = c("TB_T2 vs TB_T0" = "TB_M2 vs TB_M0",
+                                      "TB_T4 vs TB_T0" = "TB_M4 vs TB_M0",
+                                      "TB_T6 vs TB_T0" = "TB_M6 vs TB_M0")) +
 
       forestplot_theme +
     scale_x_continuous(limits = c(0, 1) )+      
@@ -1640,7 +1681,10 @@ res_table[,-c(1, ncol(res_table))] <- lapply(res_table[,-c(1, ncol(res_table))],
                          color = comparison),
                      size = 1,
                      position = position_dodge(0.5)) +
-          scale_colour_manual(values = colours)+
+          scale_colour_manual(values = colours,                           
+                              labels = c("TB_T2 vs TB_T0" = "TB_M2 vs TB_M0",
+                                      "TB_T4 vs TB_T0" = "TB_M4 vs TB_M0",
+                                      "TB_T6 vs TB_T0" = "TB_M6 vs TB_M0")) +
 
       theme(axis.title = element_text(size =  16),
                             axis.text = element_text(size = 14),

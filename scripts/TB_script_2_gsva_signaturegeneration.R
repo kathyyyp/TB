@@ -119,7 +119,7 @@ clinical_wide <- as.data.frame(pivot_wider(clinical[,c("PID", "Disease", "Timepo
 
 ### Get upregulated genes ############
 # Get all 16 upregulated genes from our TB_T0 - HC_T0 differential expression analysis
-diffexp_TBT0_vs_HCT0 <- read.csv(file.path(output.dir, "results", "tT2", "contrast1.csv"))
+diffexp_TBT0_vs_HCT0 <- read.csv(file.path(output.dir, "1_differential_expression", "tT2", "contrast1.csv"))
 T0_upregulated <- diffexp_TBT0_vs_HCT0[which(diffexp_TBT0_vs_HCT0$legend == "Upregulated"), "genename"]
 
 gene_set_of_interest <- T0_upregulated 
@@ -1026,6 +1026,7 @@ for (outcome in c("Cured", "Any_tx_outcome")){
                             c("TB_T6", "TB_T0"),
                             c("HC_T6", "HC_T0"))
   
+  
   combined_summary_results <- data.frame(Gene_set = names(gene_sets),
                                          Genes = unlist(lapply(gene_sets, function (x) 
                                            paste(x,collapse = ",")
@@ -1072,6 +1073,7 @@ contrasts <- c(
   "TB_T6vsTB_T0",
   "HC_T6vsHC_T0")
 
+
 for(outcome in c("Cured", "Any_tx_outcome")){
   for (contrast in contrasts){
     nested_res <- readRDS(file.path(signature_set.dir, 
@@ -1085,7 +1087,8 @@ for(outcome in c("Cured", "Any_tx_outcome")){
         aucs = auc_values)
     } ))
     
-    
+    contrast  <- gsub("_T", "_M", contrast)
+
     
     boxplot <- ggplot(nested_res_long, aes(
       x = factor(name),
@@ -1271,6 +1274,7 @@ for (outcome in c("Cured", "Any_tx_outcome")){
   roc_data[which(roc_data$min_or_max == "max"), "min_or_max"] <- "Best"
   
   roc_data$group <- gsub("_.*", "", roc_data$comparison)
+  roc_data$group <- gsub("T([0-9]+)", "M\\1", roc_data$group) #replace T0,T2,T4,T6 with M0,M2,M4,M6
   
   rocplot <- ggplot(roc_data, aes(x = FPR,
                                   y = TPR, 
@@ -1462,7 +1466,7 @@ stat.table.gsva.all <- rbind(stat.table.gsva, stat.table.gsva2)
 lowest_bracket <- max(boxplot_gsva$V1) + 0.05*(max(boxplot_gsva$V1))
 stat.table.gsva.all$y.position <- seq(lowest_bracket, by= 0.1, length.out = nrow(stat.table.gsva.all))
 
-
+boxplot_gsva$group <- gsub("_T", "_M", boxplot_gsva$group)
 ## Boxplot ggplot2 ---------------------------------------------------------------------------------------
 boxplotfinal <- ggplot(boxplot_gsva, aes(
   x = factor(group),
@@ -1583,6 +1587,7 @@ for (i in top_features_16[1:7]){
 }
 
 
+p$condition <- gsub("_T", "_M", p$condition)
 
 
 heatmapplot <- ggplot(p, aes(x=Sample, y=Gene_label, fill=expression_z))+
