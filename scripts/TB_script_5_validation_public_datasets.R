@@ -1,5 +1,5 @@
-# This script contains validation of the 4-gene signature in public datasets
-# Validating 4-gene signature in publicly available datasets
+# This script contains validation of the 4-gene signature in publicly available datasets
+# 4-gene signature: TAP1,GBP5,GBP2,FCGR1CP
 # We validate in TB datasets and also datasets including multiple lung diseases
 # We calculate mean of z-scored expression of the gene signature (plot = boxplots of signature scores) and also use signature scores to create glm model where score predicts disease, to calculate roc curves (plot = roc)
 # As of 09/03, no longer using GSVA method, using mean of z-scored expression instead
