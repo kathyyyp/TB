@@ -1,8 +1,9 @@
-# This script contains validation of the 4-gene signature in publicly available datasets
-# 4-gene signature: TAP1,GBP5,GBP2,FCGR1CP
+# This script contains validation of the 7-gene, 4-gene and 3-gene signature in publicly available datasets
+# 7-gene signature: IFITM1,CD274,TAP1, GBP5, GBP2, S100A8, FCGR1CP
+# 4-gene signature: TAP1, GBP5, GBP2, FCGR1CP
+# 3-gene signature: GBP5, GBP2, FCGR1CP
 # We validate in TB datasets and also datasets including multiple lung diseases
 # We calculate mean of z-scored expression of the gene signature (plot = boxplots of signature scores) and also use signature scores to create glm model where score predicts disease, to calculate roc curves (plot = roc)
-# As of 09/03, no longer using GSVA method, using mean of z-scored expression instead
 
 # ================================================================================== #
 # A. SCRIPT SET UP =================================================================
@@ -39,12 +40,20 @@ if(!exists(output.dir)) dir.create(output.dir)
 
 gc()
 
+# Define gene set lists
+gene_set_masterlist <- list(
+gene_sig_7 = c("IFITM1","CD274","TAP1","GBP5","GBP2","S100A8","FCGR1CP"),
+gene_sig_4 = c("TAP1","GBP5","GBP2","FCGR1CP"),
+gene_sig_3 = c("GBP5","GBP2","FCGR1CP")
+)
 
 # ================================================================================== #
 # 1. TB DATASETS ===================================================================
 # ================================================================================== #
 
+# --------------------------------------------------------------------------------------------------------------------------------------------- #
 # GSE89403  -----------------------------------------------------------------------------------------------------------------------------------
+# --------------------------------------------------------------------------------------------------------------------------------------------- #
 this.accession.no <- "GSE89403"
 setwd(file.path(my_directory,"TB", "data", "public", this.accession.no))
 
@@ -52,7 +61,7 @@ setwd(file.path(my_directory,"TB", "data", "public", this.accession.no))
 this.accession.res.dir <- file.path(output.dir, this.accession.no)
 if(!exists(this.accession.res.dir)) dir.create(this.accession.res.dir)
 
-#Ran in HPC
+#  Ran in HPC to retrive counts and metadata to retrive counts and metadata
 # # load counts table from GEO
 # urld <- "https://www.ncbi.nlm.nih.gov/geo/download/?format=file&type=rnaseq_counts"
 # path <- paste(urld, "acc=GSE89403", "file=GSE89403_raw_counts_GRCh38.p13_NCBI.tsv.gz", sep="&");
@@ -111,7 +120,7 @@ clinical$group <- paste0(clinical$disease,"_",clinical$time)
 table(clinical$group)
 
 
-#1) For controls, disregard week ??? but keep the controls seperate
+# For controls, disregard week ??? but keep the controls seperate
 clinical[which(clinical$disease == "Healthy"), "group"] <- "Healthy"
 clinical[which(clinical$disease == "Lungdx_ctrl"), "group"] <- "Lungdx_ctrl"
 clinical[which(clinical$disease == "MTP_ctrl"), "group"] <- "MTP_ctrl"
@@ -124,18 +133,28 @@ write.table(clinical, file.path("clinical.txt"))
 
 counts_norm <- counts_vst
 
-gene_set_list <- list(c("TAP1","GBP5","GBP2","FCGR1CP"))
+# Start loop for 3-gene, 4-gene and 7-gene sig
+for (gene_sig in names(gene_set_masterlist)){
+  
+print(gene_sig)
+this.accession.res.genesig.dir <- file.path(this.accession.res.dir, gene_sig)
+if(!exists(this.accession.res.genesig.dir)) dir.create(this.accession.res.genesig.dir)
+
+message("Running ", this.accession.no, " for ", gene_sig, ": ", paste(gene_set_plot_label, collapse = ", "))
+
+gene_set_list <- list(gene_set_masterlist[[gene_sig]])
+gene_set_plot_label <- gene_set_list
 
 # Get the gene IDs instead of HGNCs
 signature_geneid <- as.character(gene_annot[match(gene_set_list[[1]], gene_annot$Symbol), "GeneID"])
 gene_set_list <- c(signature_geneid)
 
-if(length(signature_geneid) < 4){ 
+if(length(signature_geneid) < length(gene_set_list)){ 
   print("Missing gene in signature after genone_annot conversion")
   stop() }
 
 
-## 3) Mean of z-scored expression ---------------------------
+## 3) Mean of z-scored expression --------------------------------------------------------------------------------------
 mean_zscore_func <- function(){
 
 # For each sample, get the mean standardized expression of genes in the 4-gene signature
@@ -150,7 +169,7 @@ gene_set_zscore<-scale(gene_set, center=T, scale=T)   # This results in a standa
 mean_sig_zscore<- data.frame(rowMeans(gene_set_zscore))
 colnames(mean_sig_zscore) <- "score"
 
-if(all(row.names(mean_sig_zscore) != row.names(clinical))){ stop("Row names do not match", this.accession.no)}
+if(all(row.names(mean_sig_zscore) != row.names(clinical))){ stop("Row names do not match", this.accession.no, gene_sig)}
 return(mean_sig_zscore)
 
 
@@ -180,7 +199,7 @@ boxplot_theme <- theme(axis.title = element_text(size = 24),
 x_order <- c("Healthy", "Lungdx_ctrl", "MTP_ctrl", "TB_DX", "TB_day_7", "TB_week_4", "TB_week_24")
 
 # Make boxplot function
-this.figure.dir <- file.path(this.accession.res.dir, "figures", "boxplot")
+this.figure.dir <- file.path(this.accession.res.genesig.dir, "figures", "boxplot")
 if(!exists(this.figure.dir)) dir.create(this.figure.dir, recursive = TRUE)
 
 boxplot_func <- function(outcome){
@@ -227,10 +246,6 @@ ggplot(boxplot, aes(
   stat_summary(fun.y = mean, fill = "red",
                geom = "point", shape = 21, size =4,
                show.legend = TRUE) +
-  # # scale_x_discrete(labels= c("Control" = "Control", "Mild.moderate.COPD" = "mCOPD", "Severe.COPD" = "sCOPD"))+
-  # scale_y_continuous(expand = c(0.07, 0, 0.07, 0)) +
-  
-  # theme(axis.text.x = element_text(size = 15))+
   ylab (label = "Signature Score") +
   xlab (label = "Disease")
 
@@ -255,14 +270,14 @@ for (outcome in c("all_outcomes", "not_cured", "cured")){
     boxplotfig <- boxplot_func(outcome = outcome)
     boxplotfig <- boxplotfig +   
       labs(title = paste0("Signature Analysis: ", this.accession.no, " (", outcome, ")"),
-       caption = paste0("Signature:TAP1, GBP5, GBP2, FCGR1CP", "\n", "n=", nrow(boxplot),"\n",
+       caption = paste0("Signature: ", paste(gene_set_plot_label, collapse = ", "), "\n", "n=", nrow(boxplot),"\n",
        "Signature scores calculated as mean of z-scored expression of signature genes\n",
        "Raw counts were VST normalised (DESeq2 1.42.1)\n",
        "P values from Mann-Whitney U test shown")) +
         theme(axis.text.x = element_text(size = 15))
 
     
-    ggsave(boxplotfig, filename = file.path(this.figure.dir, paste0("meanzscore_plot_", this.accession.no, "_", outcome, ".png")),
+    ggsave(boxplotfig, filename = file.path(this.figure.dir, paste0("meanzscore_plot_", this.accession.no, "_", gene_sig, "_", outcome, ".png")),
        width = 3500,
        height = 3600,
        units = "px" )
@@ -315,7 +330,7 @@ comparison_plotlabel_levels <- c(
 
 
 #Make roc function
-this.figure.dir <- file.path(this.accession.res.dir, "figures", "roc")
+this.figure.dir <- file.path(this.accession.res.genesig.dir, "figures", "roc")
 if(!exists(this.figure.dir)) dir.create(this.figure.dir, recursive = TRUE)
 
 roc_func <- function(outcome){
@@ -467,8 +482,8 @@ for (outcome in c("all_outcomes", "not_cured","cured")){
 res_table <- roc_func_res$res_table
 forestplot_res_table <- roc_func_res$forestplot_res_table
 
-write.csv(res_table, file.path(this.accession.res.dir, paste0(this.accession.no,"_res_table_", outcome, ".csv")))
-write.csv(forestplot_res_table, file.path(this.accession.res.dir, paste0(this.accession.no,"_mean_ztransformed_scores_forestplot_res_table_", outcome, ".csv")))
+write.csv(res_table, file.path(this.accession.res.genesig.dir, paste0(this.accession.no, "_", gene_sig, "_res_table_", outcome, ".csv")))
+write.csv(forestplot_res_table, file.path(this.accession.res.genesig.dir, paste0(this.accession.no, "_", gene_sig,"_mean_ztransformed_scores_forestplot_res_table_", outcome, ".csv")))
 
 }
 
@@ -513,17 +528,10 @@ ggplot(disease_roc_data, aes(x = FPR, y = TPR, color = legend)) +
     x = "FPR (1 - Specificity)",
     y = "TPR (Sensitivity)",
     color = "Comparison",
-    caption = "Signature:  TAP1, GBP5, GBP2, FCGR1CP") 
+    caption = paste0("Signature: ", paste(gene_set_plot_label, collapse = ", ")))
 }
 
-# disease_roc <- disease_roc_plot_func()
-# ggsave(disease_roc, filename = file.path(this.figure.dir, paste0("disease_roc_", outcome,".png")), 
-#        width = roc_plot_width, 
-#        height = roc_plot_height, 
-#        units = "px")
-
 #Timepoint plot
-
 timepoint_roc_plot_func <- function(legend_nrow = 2){
 
 roc_data <- roc_func_res$roc_data
@@ -545,15 +553,9 @@ ggplot(timepoint_roc_data, aes(x = FPR, y = TPR, color = legend)) +
     x = "FPR (1 - Specificity)",
     y = "TPR(Sensitivity)",
     color = "Comparison",
-    caption = "Signature:TAP1, GBP5, GBP2, FCGR1CP")
+    caption = paste0("Signature: ", paste(gene_set_plot_label, collapse = ", ")))
 }
 
-
-# timepoint_roc <- timepoint_roc_plot_func()
-# ggsave(timepoint_roc, filename = file.path(this.figure.dir, paste0("timepoint_roc_", outcome, ".png")), 
-#        width = roc_plot_width, 
-#        height = roc_plot_height, 
-#        units = "px")
 
 
 ## Forest plot -------
@@ -621,12 +623,6 @@ auc_plot <- res_table %>%
   
   return(panel_forest)
 } #close function
-# 
-# panel_forest <- forestplot_func()
-#   
-# ggsave(panel_forest, filename= file.path(this.figure.dir, paste0("forestplot_panel_", outcome,".png")),
-#          width = 15, height = 20, units = "cm",   bg = "white"  )
-# 
 
 
 for (outcome in c("all_outcomes", "not_cured","cured")){
@@ -668,19 +664,20 @@ panel_forest <- forestplot_func()
     panel_forest,
     top = text_grob(paste0(this.accession.no, " (", outcome, ")"), size = 14, hjust = 0, x = 0),
     bottom = text_grob(paste0("Senstivity and specificity calculated at Youden threshold \n",
-                              "Signature:TAP1, GBP5, GBP2, FCGR1CP"), 
+                              "Signature: ", paste(gene_set_plot_label, collapse = ", ")), 
                        size = 12, hjust = 0, x = 0)
   )
 ggsave(panel_forest, filename= file.path(this.figure.dir, paste0("forestplot_panel_", outcome,".png")),
          width = 15, height = 20, units = "cm",   bg = "white"  )
 
 }
+} #close gene sig loop
 
-
-
+# --------------------------------------------------------------------------------------------------------------------------------------------- #
 # GSE193777 -----------------------------------------------------------------------------------------------------------------------------------
+# --------------------------------------------------------------------------------------------------------------------------------------------- #
 #free up space and remove objects from previous gse (except for the functions I made and gene_annot)
-rm(list = setdiff(ls(), c("gene_annot",lsf.str())))
+rm(list = setdiff(ls(), c("gene_annot","gene_set_masterlist",lsf.str())))
 
 gc()
 
@@ -698,7 +695,7 @@ if(!exists(this.accession.res.dir)) dir.create(this.accession.res.dir)
 
 
 ## 1) Load public data -------------------------------------------------------------
-#Ran in HPC
+# Ran in HPC to retrive counts and metadata
 # urld <- "https://www.ncbi.nlm.nih.gov/geo/download/?format=file&type=rnaseq_counts"
 # path <- paste(urld, "acc=GSE193777", "file=GSE193777_raw_counts_GRCh38.p13_NCBI.tsv.gz", sep="&");
 # tbl <- as.matrix(data.table::fread(path, header=T, colClasses="integer"), rownames=1)
@@ -750,18 +747,27 @@ write.table(clinical, file.path("clinical.txt"))
 counts_norm <- counts_vst
 
 
+# Start loop for 3-gene, 4-gene and 7-gene sig
+for (gene_sig in names(gene_set_masterlist)){
+  
+print(gene_sig)
+this.accession.res.genesig.dir <- file.path(this.accession.res.dir, gene_sig)
+if(!exists(this.accession.res.genesig.dir)) dir.create(this.accession.res.genesig.dir)
 
+message("Running ", this.accession.no, " for ", gene_sig, ": ", paste(gene_set_masterlist[[gene_sig]], collapse = ", "))
 
-## 3) Mean of z-scored expression ---------------------------
-gene_set_list <- list(c("TAP1","GBP5","GBP2","FCGR1CP"))
+gene_set_list <- list(gene_set_masterlist[[gene_sig]])
+gene_set_plot_label <- gene_set_list
 
 # Get the gene IDs instead of HGNCs
 signature_geneid <- as.character(gene_annot[match(gene_set_list[[1]], gene_annot$Symbol), "GeneID"])
 gene_set_list <- c(signature_geneid)
 
-if(length(signature_geneid) < 4){ 
+if(length(signature_geneid) < length(gene_set_list)){ 
   print("Missing gene in signature after genone_annot conversion")
   stop() }
+
+## 3) Mean of z-scored expression ---------------------------
 
 mean_sig_zscore <- mean_zscore_func() #Function already defined for previous gse, same code 
 
@@ -783,7 +789,7 @@ x_order <- c("Healthy", "Icp_TB_bl", "Icp_TB_fu", "Sub_TB_bl", "Sub_TB_fu", "Act
 
 # Run boxplot function for all (no treatment outcome data for this gse)
 # Function defined previously
-this.figure.dir <- file.path(this.accession.res.dir, "figures", "boxplot")
+this.figure.dir <- file.path(this.accession.res.genesig.dir, "figures", "boxplot")
 if(!exists(this.figure.dir)) dir.create(this.figure.dir, recursive = TRUE)
 
 boxplot <- boxplot_all
@@ -798,7 +804,7 @@ boxplotfig <- boxplotfig + scale_x_discrete(labels= c("Healthy" = "Healthy",
                              "Sub_TB_bl" = "Subclinical TB \n baseline",
                              "Sub_TB_fu" = "Subclinical TB \n followup")) +
        labs(title = paste0("Signature Analysis: ", this.accession.no, " (", outcome, ")"),
-       caption = paste0("Signature:TAP1, GBP5, GBP2, FCGR1CP", "\n", "n=", nrow(boxplot),"\n",
+       caption = paste0("Signature: ", paste(gene_set_plot_label, collapse = ", "), "\n", "n=", nrow(boxplot),"\n",
        "Signature scores calculated as mean of z-scored expression of signature genes\n",
        "Raw counts were VST normalised (DESeq2 1.42.1)\n",
        "P values from Mann-Whitney U test shown")) +
@@ -807,7 +813,7 @@ boxplotfig <- boxplotfig + scale_x_discrete(labels= c("Healthy" = "Healthy",
   
 
 
-ggsave(boxplotfig, filename = file.path(this.figure.dir, paste0("meanzscore_plot_", this.accession.no, ".png")),
+ggsave(boxplotfig, filename = file.path(this.figure.dir, paste0("meanzscore_plot_", this.accession.no, "_", gene_sig, "_", outcome, ".png")),
        width = 3600,
        height = 3200,
        units = "px" )
@@ -860,7 +866,7 @@ comparison_plotlabel_levels <- c(
 
 
 # Run roc function
-this.figure.dir <- file.path(this.accession.res.dir, "figures", "roc")
+this.figure.dir <- file.path(this.accession.res.genesig.dir, "figures", "roc")
 if(!exists(this.figure.dir)) dir.create(this.figure.dir, recursive = TRUE)
 
 clinical_treat <- clinical
@@ -869,8 +875,8 @@ roc_func_res <- roc_func(outcome = outcome)
 res_table <- roc_func_res$res_table
 forestplot_res_table <- roc_func_res$forestplot_res_table
 
-write.csv(res_table, file.path(this.accession.res.dir, paste0(this.accession.no,"_res_table_", outcome, ".csv")))
-write.csv(forestplot_res_table, file.path(this.accession.res.dir, paste0(this.accession.no,"_mean_ztransformed_scores_forestplot_res_table_", outcome, ".csv")))
+write.csv(res_table, file.path(this.accession.res.genesig.dir, paste0(this.accession.no, "_", gene_sig,"_res_table_", outcome, ".csv")))
+write.csv(forestplot_res_table, file.path(this.accession.res.genesig.dir, paste0(this.accession.no, "_", gene_sig,"_mean_ztransformed_scores_forestplot_res_table_", outcome, ".csv")))
 
 
   
@@ -914,20 +920,22 @@ panel_forest <- forestplot_func()
     panel_forest,
     top = text_grob(paste0(this.accession.no, " (", outcome, ")"), size = 14, hjust = 0, x = 0),
     bottom = text_grob(paste0("Senstivity and specificity calculated at Youden threshold \n",
-                              "Signature:TAP1, GBP5, GBP2, FCGR1CP"), 
+                              "Signature: ", paste(gene_set_plot_label, collapse = ", ")),
                        size = 12, hjust = 0, x = 0)
   )
 ggsave(panel_forest, filename= file.path(this.figure.dir, paste0("forestplot_panel_", outcome,".png")),
          width = 15, height = 20, units = "cm",   bg = "white"  )
 
+}
   
   
   
-  
-  
+# --------------------------------------------------------------------------------------------------------------------------------------------- #
 # GSE79362 -----------------------------------------------------------------------------------------------------------------------------------
+# --------------------------------------------------------------------------------------------------------------------------------------------- #
+
 #free up space and remove objects from previous gse (except for the functions I made and gene_annot)
-rm(list = setdiff(ls(), c("gene_annot",lsf.str())))
+rm(list = setdiff(ls(), c("gene_annot","gene_set_masterlist",lsf.str())))
 
 gc()
 
@@ -944,10 +952,8 @@ setwd(file.path(my_directory,"TB", "data", "public", this.accession.no))
 this.accession.res.dir <- file.path(output.dir, this.accession.no)
 if(!exists(this.accession.res.dir)) dir.create(this.accession.res.dir)
 
-if(!exists(file.path(this.accession.res.dir, "figures"))) dir.create(file.path(this.accession.res.dir, "figures"))
-
 ## 1) Load public data ------------------------------------------------------
-#Ran in HPC
+# Ran in HPC to retrive counts and metadata
 # urld <- "https://www.ncbi.nlm.nih.gov/geo/download/?format=file&type=rnaseq_counts"
 # path <- paste(urld, "acc=GSE79362", "file=GSE79362_raw_counts_GRCh38.p13_NCBI.tsv.gz", sep="&");
 # tbl <- as.matrix(data.table::fread(path, header=T, colClasses="integer"), rownames=1)
@@ -998,18 +1004,28 @@ write.table(clinical, file.path("clinical.txt"))
 
 counts_norm <- counts_vst
 
-## 3) Mean of z-scored expression ---------------------------
 
-gene_set_list <- list(c("TAP1","GBP5","GBP2","FCGR1CP"))
+# Start loop for 3-gene, 4-gene and 7-gene sig
+for (gene_sig in names(gene_set_masterlist)){
+  
+print(gene_sig)
+this.accession.res.genesig.dir <- file.path(this.accession.res.dir, gene_sig)
+if(!exists(this.accession.res.genesig.dir)) dir.create(this.accession.res.genesig.dir)
+
+message("Running ", this.accession.no, " for ", gene_sig, ": ", paste(gene_set_masterlist[[gene_sig]], collapse = ", "))
+
+gene_set_list <- list(gene_set_masterlist[[gene_sig]])
+gene_set_plot_label <- gene_set_list
 
 # Get the gene IDs instead of HGNCs
 signature_geneid <- as.character(gene_annot[match(gene_set_list[[1]], gene_annot$Symbol), "GeneID"])
 gene_set_list <- c(signature_geneid)
 
-if(length(signature_geneid) < 4){ 
+if(length(signature_geneid) < length(gene_set_list)){ 
   print("Missing gene in signature after genone_annot conversion")
   stop() }
 
+## 3) Mean of z-scored expression ---------------------------
 mean_sig_zscore <- mean_zscore_func() #Function already defined for previous gse, same code 
 
 ## 3.1) Boxplot ---------------------------
@@ -1030,7 +1046,7 @@ x_order <- c("Healthy", "Active TB")
 
 # Run boxplot function for all (no treatment outcome data for this gse)
 # Function defined previously
-this.figure.dir <- file.path(this.accession.res.dir, "figures", "boxplot")
+this.figure.dir <- file.path(this.accession.res.genesig.dir, "figures", "boxplot")
 if(!exists(this.figure.dir)) dir.create(this.figure.dir, recursive = TRUE)
 
 boxplot <- boxplot_all
@@ -1039,13 +1055,13 @@ outcome = "TB" #no outcome data available so just use 'TB' as placeholder
 boxplotfig <- boxplot_func(outcome = outcome) 
 
 boxplotfig <- boxplotfig + labs(title = paste0("Signature Analysis: ", this.accession.no, " (", outcome, ")"),
-       caption = paste0("Signature:TAP1, GBP5, GBP2, FCGR1CP", "\n", "n=", nrow(boxplot),"\n",
+       caption = paste0("Signature: ", paste(gene_set_plot_label, collapse = ", "), "\n", "n=", nrow(boxplot),"\n",
        "Signature scores calculated as mean of z-scored expression of signature genes\n",
        "Raw counts were VST normalised (DESeq2 1.42.1)\n",
        "P values from Mann-Whitney U test shown")) 
 
 
-ggsave(boxplotfig, filename = file.path(this.figure.dir, paste0("meanzscore_plot_", this.accession.no, ".png")),
+ggsave(boxplotfig, filename = file.path(this.figure.dir, paste0("meanzscore_plot_", this.accession.no, "_", gene_sig, "_", outcome, ".png")),
        width = 3000,
        height = 2800,
        units = "px" )
@@ -1070,7 +1086,7 @@ comparison_plotlabel_levels <- comparison_levels
 
 # 5) ROC Curves & Forest plot-----------------------------------------------------------
 # Run roc function
-this.figure.dir <- file.path(this.accession.res.dir, "figures", "roc")
+this.figure.dir <- file.path(this.accession.res.genesig.dir, "figures", "roc")
 if(!exists(this.figure.dir)) dir.create(this.figure.dir, recursive = TRUE)
 
 clinical_treat <- clinical
@@ -1079,8 +1095,8 @@ roc_func_res <- roc_func(outcome = outcome)
 res_table <- roc_func_res$res_table
 forestplot_res_table <- roc_func_res$forestplot_res_table
 
-write.csv(res_table, file.path(this.accession.res.dir, paste0(this.accession.no,"_res_table_", outcome, ".csv")))
-write.csv(forestplot_res_table, file.path(this.accession.res.dir, paste0(this.accession.no,"_mean_ztransformed_scores_forestplot_res_table_", outcome, ".csv")))
+write.csv(res_table, file.path(this.accession.res.genesig.dir, paste0(this.accession.no, "_", gene_sig,"_res_table_", outcome, ".csv")))
+write.csv(forestplot_res_table, file.path(this.accession.res.genesig.dir, paste0(this.accession.no, "_", gene_sig,"_mean_ztransformed_scores_forestplot_res_table_", outcome, ".csv")))
 
 
 disease_roc_subset <- c(
@@ -1105,13 +1121,13 @@ panel_forest <- forestplot_func()
     panel_forest,
     top = text_grob(paste0(this.accession.no, " (", outcome, ")"), size = 14, hjust = 0, x = 0),
     bottom = text_grob(paste0("Senstivity and specificity calculated at Youden threshold \n",
-                              "Signature:TAP1, GBP5, GBP2, FCGR1CP"), 
+                              "Signature: ", paste(gene_set_plot_label, collapse = ", ")),
                        size = 12, hjust = 0, x = 0)
   )
 ggsave(panel_forest, filename= file.path(this.figure.dir, paste0("forestplot_panel_", outcome,".png")),
          width = 15, height = 20, units = "cm",   bg = "white"  )
 
-  
+}
 
 
 
@@ -1122,11 +1138,11 @@ ggsave(panel_forest, filename= file.path(this.figure.dir, paste0("forestplot_pan
 # ========================= 2. TB MULTIDRUG RESISTANT AMD DRUG SUSCEPTIBLE DATASETS ============================
 # =========================================================================================================== #
 
-
+# --------------------------------------------------------------------------------------------------------------------------------------------- #
 # GSE147690 (German Identification cohort) ----------------------------------------------------------------------------------------------------------------------------------------
+# --------------------------------------------------------------------------------------------------------------------------------------------- #
 #free up space and remove objects from previous gse (except for the functions I made and gene_annot)
-rm(list = setdiff(ls(), c(lsf.str())))
-
+rm(list = setdiff(ls(), c("gene_set_masterlist",lsf.str())))
 gc()
 
 my_directory <- "/Volumes/One Touch/RBMB"
@@ -1335,25 +1351,38 @@ GSE147690_counts_norm <- counts_norm
 write.table(GSE147690_counts_norm, file.path("counts_norm.txt"))
 write.table(GSE147690_clinical, file.path("clinical.txt"))
 
+# Start loop for 3-gene, 4-gene and 7-gene sig
+for (gene_sig in names(gene_set_masterlist)){
+  
+print(gene_sig)
+this.accession.res.genesig.dir <- file.path(this.accession.res.dir, gene_sig)
+if(!exists(this.accession.res.genesig.dir)) dir.create(this.accession.res.genesig.dir)
 
-## 3) Mean of z-scored expression ---------------------------
-  gene_set_list <- list(c("TAP1","GBP5","GBP2","FCGR1B"))
+message("Running ", this.accession.no, " for ", gene_sig, ": ", paste(gene_set_masterlist[[gene_sig]], collapse = ", "))
+
+gene_set_list <- list(gene_set_masterlist[[gene_sig]])
 
 # Get the gene IDs instead of HGNCs
+#CANNOT FIND FCGR1C OR ITS ALIASES. USE "FCGR1B" instead
+gene_set_list[[1]][which(gene_set_list[[1]] == "FCGR1CP")] <- "FCGR1B"
+
+gene_set_plot_label <- gene_set_list[[1]]
+
 signature_geneid <- as.character(gene_annot[match(gene_set_list[[1]], gene_annot$GENE_SYMBOL), "REFSEQ"])
 signature_geneid %in% row.names(counts_norm)
 gene_set_list <- c(signature_geneid)
-#CANNOT FIND FCGR1C OR ITS ALIASES
 
-if(length(signature_geneid) < 4){ 
+
+if(length(signature_geneid) < length(gene_set_list)){ 
   print("Missing gene in signature after genone_annot conversion")
   stop() }
 
-# For each sample, get the mean standardized expression of genes in the 4-gene signature
+## 3) Mean of z-scored expression ---------------------------
+# For each sample, get the mean standardized expression of genes in the signature
 mean_sig_zscore <- mean_zscore_func()
 
 ## 3.1) Boxplot ---------------------------
-this.figure.dir <- file.path(this.accession.res.dir, "figures", "boxplot")
+this.figure.dir <- file.path(this.accession.res.genesig.dir, "figures", "boxplot")
 if(!exists(this.figure.dir)) dir.create(this.figure.dir, recursive = TRUE)
 
 boxplot_all <- as.data.frame(cbind(mean_zscore = mean_sig_zscore,
@@ -1387,7 +1416,7 @@ boxplotfig <- ggplot(boxplot_all, aes(
 theme(axis.text.x = element_text(size = 18))+
   labs(title = paste0("Signature Analysis: ", this.accession.no, " (", outcome, ")"),
        color = "Disease", #legend title
-       caption = paste0("Signature:TAP1, GBP5, GBP2, FCGR1B", "\n", 
+       caption = paste0("Signature: ", paste(gene_set_plot_label, collapse = ", "), "\n", 
                         "Note: FCGR1CP was not annotated in GPL13497; FCGR1B was used as a proxy", "\n",
                         "n=", nrow(boxplot_all),"\n",
        "Signature scores calculated as mean of z-scored expression of signature genes\n",
@@ -1402,7 +1431,7 @@ theme(axis.text.x = element_text(size = 18))+
 
 
 
-ggsave(boxplotfig, filename = file.path(this.figure.dir, paste0("meanzscore_plot_", this.accession.no, ".png")),
+ggsave(boxplotfig, filename = file.path(this.figure.dir, paste0("meanzscore_plot_", this.accession.no, "_", gene_sig, "_", outcome, ".png")),
        width = 3600, 
        height = 3250, 
        units = "px" )
@@ -1431,7 +1460,7 @@ comparison_levels <- c(
 comparison_plotlabel_levels <- comparison_levels
 
 #Run ROC function
-this.figure.dir <- file.path(this.accession.res.dir, "figures", "roc")
+this.figure.dir <- file.path(this.accession.res.genesig.dir, "figures", "roc")
 if(!exists(this.figure.dir)) dir.create(this.figure.dir)
 
 #Only get T0 and Healthy
@@ -1442,8 +1471,8 @@ roc_func_res <- roc_func(outcome = outcome)
 res_table <- roc_func_res$res_table
 forestplot_res_table <- roc_func_res$forestplot_res_table
 
-write.csv(res_table, file.path(this.accession.res.dir, paste0(this.accession.no,"_res_table_", outcome, ".csv")))
-write.csv(forestplot_res_table, file.path(this.accession.res.dir, paste0(this.accession.no,"_mean_ztransformed_scores_forestplot_res_table_", outcome, ".csv")))
+write.csv(res_table, file.path(this.accession.res.genesig.dir, paste0(this.accession.no, "_", gene_sig, "_res_table_", outcome, ".csv")))
+write.csv(forestplot_res_table, file.path(this.accession.res.genesig.dir, paste0(this.accession.no, "_", gene_sig, "_mean_ztransformed_scores_forestplot_res_table_", outcome, ".csv")))
 
 
 
@@ -1465,7 +1494,7 @@ disease_roc <- disease_roc +   labs(
     x = "FPR (1 - Specificity)",
     y = "TPR (Sensitivity)",
     color = "Comparison",
-       caption = paste0("Signature:TAP1, GBP5, GBP2, FCGR1B", "\n", 
+       caption = paste0("Signature: ", paste(gene_set_plot_label, collapse = ", "), "\n", 
                         "Note: FCGR1CP was not annotated in GPL13497; FCGR1B was used as a proxy"))
   
   
@@ -1482,7 +1511,7 @@ panel_forest <- annotate_figure(
     panel_forest,
     top = text_grob(paste0(this.accession.no, " (", outcome, ")"), size = 14, hjust = 0, x = 0),
     bottom = text_grob(paste0("Senstivity and specificity calculated at Youden threshold \n",
-                              "Signature:TAP1, GBP5, GBP2, FCGR1B", "\n", 
+                              "Signature: ", paste(gene_set_plot_label, collapse = ", "), "\n", 
                         "Note: FCGR1CP was not annotated in GPL13497; FCGR1B was \n used as a proxy"),
                        size = 12, hjust = 0, x = 0))
     
@@ -1490,9 +1519,10 @@ ggsave(panel_forest, filename= file.path(this.figure.dir, paste0("forestplot_pan
          width = 15, height = 20, units = "cm",   bg = "white"  )
 
   
-  
-  
-# GSE147689 (German validation cohort) ----------------------------------------------------------------------------------------------------------------------------------------
+}
+# --------------------------------------------------------------------------------------------------------------------------------------------- #
+# GSE147689 (German validation cohort) --------------------------------------------------------------------------------------------------------
+# --------------------------------------------------------------------------------------------------------------------------------------------- #
 #free up space and remove objects from previous gse (except for the functions I made and gene_annot)
 
 this.accession.no <- "GSE147689"
@@ -1674,27 +1704,37 @@ GSE147689_counts_norm <- counts_norm
 write.table(GSE147689_counts_norm, file.path("counts_norm.txt"))
 write.table(GSE147689_clinical, file.path("clinical.txt"))
 
+# Start loop for 3-gene, 4-gene and 7-gene sig
+for (gene_sig in names(gene_set_masterlist)){
+  
+print(gene_sig)
+this.accession.res.genesig.dir <- file.path(this.accession.res.dir, gene_sig)
+if(!exists(this.accession.res.genesig.dir)) dir.create(this.accession.res.genesig.dir)
 
+message("Running ", this.accession.no, " for ", gene_sig, ": ", paste(gene_set_masterlist[[gene_sig]], collapse = ", "))
 
-## 3) Mean of z-scored expression ---------------------------
-
-  gene_set_list <- list(c("TAP1","GBP5","GBP2","FCGR1B"))
+gene_set_list <- list(gene_set_masterlist[[gene_sig]])
 
 # Get the gene IDs instead of HGNCs
+#CANNOT FIND FCGR1C OR ITS ALIASES. USE "FCGR1B" instead
+gene_set_list[[1]][which(gene_set_list[[1]] == "FCGR1CP")] <- "FCGR1B"
+
+gene_set_plot_label <- gene_set_list[[1]]
+
 signature_geneid <- as.character(gene_annot[match(gene_set_list[[1]], gene_annot$GENE_SYMBOL), "REFSEQ"])
 signature_geneid %in% row.names(counts_norm)
 gene_set_list <- c(signature_geneid)
-#CANNOT FIND FCGR1C OR ITS ALIASES
 
-if(length(signature_geneid) < 4){ 
+if(length(signature_geneid) < length(gene_set_list)){ 
   print("Missing gene in signature after genone_annot conversion")
   stop() }
 
-# For each sample, get the mean standardized expression of genes in the 4-gene signature
+## 3) Mean of z-scored expression ---------------------------
+# For each sample, get the mean standardized expression of genes in the signature
 mean_sig_zscore <- mean_zscore_func()
 
 ## 3.1) Boxplot ---------------------------
-this.figure.dir <- file.path(this.accession.res.dir, "figures", "boxplot")
+this.figure.dir <- file.path(this.accession.res.genesig.dir, "figures", "boxplot")
 if(!exists(this.figure.dir)) dir.create(this.figure.dir, recursive = TRUE)
 
 boxplot_all <- as.data.frame(cbind(mean_zscore = mean_sig_zscore,
@@ -1724,7 +1764,7 @@ boxplotfig <- ggplot(boxplot_all, aes(
 theme(axis.text.x = element_text(size = 18))+
   labs(title = paste0("Signature Analysis: ", this.accession.no, " (", outcome, ")"),
        color = "Disease", #legend title
-       caption = paste0("Signature:TAP1, GBP5, GBP2, FCGR1B", "\n", 
+       caption = paste0("Signature: ", paste(gene_set_plot_label, collapse = ", "), "\n", 
                         "Note: FCGR1CP was not annotated in GPL13497; FCGR1B was used as a proxy", "\n",
                         "n=", nrow(boxplot_all),"\n",
        "Signature scores calculated as mean of z-scored expression of signature genes\n",
@@ -1739,7 +1779,7 @@ theme(axis.text.x = element_text(size = 18))+
 
 
 
-ggsave(boxplotfig, filename = file.path(this.figure.dir, paste0("meanzscore_plot_", this.accession.no, ".png")),
+ggsave(boxplotfig, filename = file.path(this.figure.dir, paste0("meanzscore_plot_", this.accession.no, "_", gene_sig, "_", outcome, ".png")),
        width = 3600, 
        height = 3250, 
        units = "px" )
@@ -1766,7 +1806,7 @@ comparison_plotlabel_levels <- comparison_levels
 
 
 #Run ROC function
-this.figure.dir <- file.path(this.accession.res.dir, "figures", "roc")
+this.figure.dir <- file.path(this.accession.res.genesig.dir, "figures", "roc")
 if(!exists(this.figure.dir)) dir.create(this.figure.dir)
 
 clinical_treat <- clinical[which(clinical$months == 0),]
@@ -1775,8 +1815,8 @@ roc_func_res <- roc_func(outcome = outcome)
 res_table <- roc_func_res$res_table
 forestplot_res_table <- roc_func_res$forestplot_res_table
 
-write.csv(res_table, file.path(this.accession.res.dir, paste0(this.accession.no,"_res_table_", outcome, ".csv")))
-write.csv(forestplot_res_table, file.path(this.accession.res.dir, paste0(this.accession.no,"_mean_ztransformed_scores_forestplot_res_table_", outcome, ".csv")))
+write.csv(res_table, file.path(this.accession.res.genesig.dir, paste0(this.accession.no, "_", gene_sig, "_res_table_", outcome, ".csv")))
+write.csv(forestplot_res_table, file.path(this.accession.res.genesig.dir, paste0(this.accession.no, "_", gene_sig, "_mean_ztransformed_scores_forestplot_res_table_", outcome, ".csv")))
 
 
 
@@ -1797,7 +1837,7 @@ disease_roc <- disease_roc +   labs(
     x = "FPR (1 - Specificity)",
     y = "TPR (Sensitivity)",
     color = "Comparison",
-       caption = paste0("Signature:TAP1, GBP5, GBP2, FCGR1B", "\n", 
+       caption = paste0("Signature: ", paste(gene_set_plot_label, collapse = ", "), "\n", 
                         "Note: FCGR1CP was not annotated in GPL13497; FCGR1B was used as a proxy"))
   
   
@@ -1814,16 +1854,18 @@ panel_forest <- annotate_figure(
     panel_forest,
     top = text_grob(paste0(this.accession.no, " (", outcome, ")"), size = 14, hjust = 0, x = 0),
     bottom = text_grob(paste0("Senstivity and specificity calculated at Youden threshold \n",
-                              "Signature:TAP1, GBP5, GBP2, FCGR1B", "\n", 
+                              "Signature: ", paste(gene_set_plot_label, collapse = ", "), "\n", 
                         "Note: FCGR1CP was not annotated in GPL13497; FCGR1B was \n used as a proxy"),
                        size = 12, hjust = 0, x = 0))
     
 ggsave(panel_forest, filename= file.path(this.figure.dir, paste0("forestplot_panel_", outcome,".png")),
          width = 15, height = 20, units = "cm",   bg = "white"  )
 
-  
+} #close gene_sig loop
 
-# COMBINE GERMAN IDENTIFICATION + VALIDATIONS COHORTS) ----------------------------------------------------------------------------------------------------------------------------------------
+# --------------------------------------------------------------------------------------------------------------------------------------------- #
+# COMBINE GERMAN IDENTIFICATION + VALIDATIONS COHORTS) ------------------------------------------------------------------------------------------
+# --------------------------------------------------------------------------------------------------------------------------------------------- #
 this.accession.no <- "GSE147690_GSE147689"
 setwd(file.path(my_directory,"TB", "data", "public", this.accession.no))
 
@@ -1843,27 +1885,39 @@ table(german_clinical$months)
 german_clinical[which(german_clinical$disease == "Healthy"), "months"] <- 0
 
 
-## 3) Mean of z-scored expression ---------------------------
-gene_set_list <- list(c("TAP1","GBP5","GBP2","FCGR1B"))
+# Start loop for 3-gene, 4-gene and 7-gene sig
+for (gene_sig in names(gene_set_masterlist)){
+  
+print(gene_sig)
+this.accession.res.genesig.dir <- file.path(this.accession.res.dir, gene_sig)
+if(!exists(this.accession.res.genesig.dir)) dir.create(this.accession.res.genesig.dir)
+
+message("Running ", this.accession.no, " for ", gene_sig, ": ", paste(gene_set_masterlist[[gene_sig]], collapse = ", "))
+
+gene_set_list <- list(gene_set_masterlist[[gene_sig]])
 
 # Get the gene IDs instead of HGNCs
+#CANNOT FIND FCGR1C OR ITS ALIASES. USE "FCGR1B" instead
+gene_set_list[[1]][which(gene_set_list[[1]] == "FCGR1CP")] <- "FCGR1B"
+
+gene_set_plot_label <- gene_set_list[[1]]
+
 signature_geneid <- as.character(gene_annot[match(gene_set_list[[1]], gene_annot$GENE_SYMBOL), "REFSEQ"])
 signature_geneid %in% row.names(german_counts)
 gene_set_list <- c(signature_geneid)
-#CANNOT FIND FCGR1C OR ITS ALIASES
 
-if(length(signature_geneid) < 4){ 
+if(length(signature_geneid) < length(gene_set_list)){ 
   print("Missing gene in signature after genone_annot conversion")
   stop() }
 
-
-# For each sample, get the mean standardized expression of genes in the 4-gene signature
+## 3) Mean of z-scored expression ---------------------------
+# For each sample, get the mean standardized expression of genes in the signature
 counts_norm <- german_counts
 mean_sig_zscore <- mean_zscore_func()
 
 
 ## 3.1) Boxplot ---------------------------
-this.figure.dir <- file.path(this.accession.res.dir, "figures", "boxplot")
+this.figure.dir <- file.path(this.accession.res.genesig.dir, "figures", "boxplot")
 if(!exists(this.figure.dir)) dir.create(this.figure.dir, recursive = TRUE)
 
 boxplot_all <- as.data.frame(cbind(mean_zscore = mean_sig_zscore,
@@ -1918,7 +1972,7 @@ boxplotfig<- ggplot(boxplot_all, aes(
 theme(axis.text.x = element_text(size = 18))+
   labs(title = "Signature Analysis: GSE147689 & GSE147690",
        color = "Disease", #legend title
-       caption = paste0("Signature:TAP1, GBP5, GBP2, FCGR1B", "\n", 
+       caption = paste0("Signature: ", paste(gene_set_plot_label, collapse = ", "), "\n", 
                         "Note: FCGR1CP was not annotated in GPL13497; FCGR1B was used as a proxy", "\n",
                         "n=", nrow(boxplot_all),"\n",
        "Signature scores calculated as mean of z-scored expression of signature genes\n",
@@ -1929,7 +1983,7 @@ theme(axis.text.x = element_text(size = 18))+
   xlab (label = "Months of Treatment")
 
 
-ggsave(boxplotfig, filename = file.path(this.figure.dir, paste0("meanzscore_plot_", this.accession.no, ".png")),
+ggsave(boxplotfig, filename = file.path(this.figure.dir, paste0("meanzscore_plot_", this.accession.no, "_", gene_sig, "_", outcome, ".png")),
        width = 3700, 
        height = 3250, 
        units = "px" )
@@ -1961,7 +2015,7 @@ comparison_plotlabel_levels <- comparison_levels
 
 
 #Run ROC function
-this.figure.dir <- file.path(this.accession.res.dir, "figures", "roc")
+this.figure.dir <- file.path(this.accession.res.genesig.dir, "figures", "roc")
 if(!exists(this.figure.dir)) dir.create(this.figure.dir)
 
 
@@ -1972,8 +2026,8 @@ roc_func_res <- roc_func(outcome = outcome)
 res_table <- roc_func_res$res_table
 forestplot_res_table <- roc_func_res$forestplot_res_table
 
-write.csv(res_table, file.path(this.accession.res.dir, paste0(this.accession.no,"_res_table_", outcome, ".csv")))
-write.csv(forestplot_res_table, file.path(this.accession.res.dir, paste0(this.accession.no,"_mean_ztransformed_scores_forestplot_res_table_", outcome, ".csv")))
+write.csv(res_table, file.path(this.accession.res.genesig.dir, paste0(this.accession.no, "_", gene_sig, "_res_table_", outcome, ".csv")))
+write.csv(forestplot_res_table, file.path(this.accession.res.genesig.dir, paste0(this.accession.no, "_", gene_sig, "_mean_ztransformed_scores_forestplot_res_table_", outcome, ".csv")))
 
 
 
@@ -1999,7 +2053,7 @@ disease_roc <- disease_roc +   labs(
     x = "FPR (1 - Specificity)",
     y = "TPR (Sensitivity)",
     color = "Comparison",
-       caption = paste0("Signature:TAP1, GBP5, GBP2, FCGR1B", "\n", 
+       caption = paste0("Signature: ", paste(gene_set_plot_label, collapse = ", "), "\n", 
                         "Note: FCGR1CP was not annotated in GPL13497; FCGR1B was used as a proxy"))
   
   
@@ -2016,7 +2070,7 @@ panel_forest <- annotate_figure(
     panel_forest,
     top = text_grob(paste0(this.accession.no, " (", outcome, ")"), size = 14, hjust = 0, x = 0),
     bottom = text_grob(paste0("Senstivity and specificity calculated at Youden threshold \n",
-                              "Signature:TAP1, GBP5, GBP2, FCGR1B", "\n", 
+                              "Signature: ", paste(gene_set_plot_label, collapse = ", "), "\n", 
                         "Note: FCGR1CP was not annotated in GPL13497; FCGR1B was \n used as a proxy"),
                        size = 12, hjust = 0, x = 0))
     
@@ -2026,7 +2080,7 @@ ggsave(panel_forest, filename= file.path(this.figure.dir, paste0("forestplot_pan
   
   
   
-  
+
   
 ## 4) ROUNDED Validation  ------------------------------------------------------
 # CREATE TIMEPOINTS
@@ -2117,21 +2171,25 @@ for (pair in pairwise_comparisons) {
   subset_clinical$group_new <- factor(subset_clinical$group_new, levels = c(group1, group2))
   
   
-## 3) Mean of z-scored expression ---------------------------
-gene_set_list <- list(c("TAP1","GBP5","GBP2","FCGR1B"))
+  
+gene_set_list <- list(gene_set_masterlist[[gene_sig]])
 
 # Get the gene IDs instead of HGNCs
+#CANNOT FIND FCGR1C OR ITS ALIASES. USE "FCGR1B" instead
+gene_set_list[[1]][which(gene_set_list[[1]] == "FCGR1CP")] <- "FCGR1B"
+
+gene_set_plot_label <- gene_set_list[[1]]
+
 signature_geneid <- as.character(gene_annot[match(gene_set_list[[1]], gene_annot$GENE_SYMBOL), "REFSEQ"])
 signature_geneid %in% row.names(subset_counts)
 gene_set_list <- c(signature_geneid)
-#CANNOT FIND FCGR1C OR ITS ALIASES
 
-if(length(signature_geneid) < 4){ 
+if(length(signature_geneid) < length(gene_set_list)){ 
   print("Missing gene in signature after genone_annot conversion")
   stop() }
 
 
-# For each sample, get the mean standardized expression of genes in the 4-gene signature
+# For each sample, get the mean standardized expression of genes in the signature
 
 gene_set <- subset_counts[gene_set_list,]
 gene_set <- t(gene_set) #genes are columns so we can z-score column-wise (centre = centre each gene around its own mean)
@@ -2213,8 +2271,8 @@ all(row.names(mean_sig_zscore) == row.names(subset_clinical))
   
 } # close pair
   
-write.csv(res_table, file.path(this.accession.res.dir, paste0(this.accession.no,"_res_table_", outcome, ".csv")))
-write.csv(forestplot_res_table, file.path(this.accession.res.dir, paste0(this.accession.no,"_mean_ztransformed_scores_forestplot_res_table_", outcome, ".csv")))
+write.csv(res_table, file.path(this.accession.res.genesig.dir, paste0(this.accession.no, "_", gene_sig, "_res_table_", outcome, ".csv")))
+write.csv(forestplot_res_table, file.path(this.accession.res.genesig.dir, paste0(this.accession.no, "_", gene_sig, "_mean_ztransformed_scores_forestplot_res_table_", outcome, ".csv")))
 
 
 
@@ -2263,7 +2321,7 @@ disease_roc <- ggplot(disease_roc_data, aes(x = FPR, y = TPR, color = legend)) +
     x = "FPR (1 - Specificity)",
     y = "TPR (Sensitivity)",
     color = "Comparison",
-       caption = paste0("Signature:TAP1, GBP5, GBP2, FCGR1B", "\n", 
+       caption = paste0("Signature: ", paste(gene_set_plot_label, collapse = ", "), "\n", 
                         "Note: FCGR1CP was not annotated in GPL13497; FCGR1B was used as a proxy"))
     
 ggsave(disease_roc, filename = file.path(this.figure.dir, paste0("disease_roc_", outcome,".png")), 
@@ -2297,7 +2355,7 @@ timepoint_roc <- ggplot(timepoint_roc_data, aes(x = FPR, y = TPR, color = legend
     x = "FPR (1 - Specificity)",
     y = "TPR(Sensitivity)",
     color = "Comparison",
-       caption = paste0("Signature:TAP1, GBP5, GBP2, FCGR1B", "\n", 
+       caption = paste0("Signature: ", paste(gene_set_plot_label, collapse = ", "), "\n", 
                         "Note: FCGR1CP was not annotated in GPL13497; FCGR1B was used as a proxy"))
 
 
@@ -2373,7 +2431,7 @@ auc_plot <- res_table %>%
     panel_forest,
     top = text_grob(paste0(this.accession.no, " (", outcome, ")"), size = 14, hjust = 0, x = 0),
     bottom = text_grob(paste0("Senstivity and specificity calculated at Youden threshold \n",
-                              "Signature:TAP1, GBP5, GBP2, FCGR1B", "\n", 
+                              "Signature: ", paste(gene_set_plot_label, collapse = ", "), "\n", 
                         "Note: FCGR1CP was not annotated in GPL13497; FCGR1B was used as a proxy"),
                        size = 12, hjust = 0, x = 0)
   )
@@ -2392,14 +2450,14 @@ auc_plot <- res_table %>%
 # All patients completed 12 months of evaluation following the end of therapy to capture disease recurrence. 
 
 
+} # close gene_sig loop
   
   
-  
-  
+# --------------------------------------------------------------------------------------------------------------------------------------------- #
 # GSE147691 (Romanian Validation cohort) ----------------------------------------------------------------------------------------------------------------------------------------
-
+# --------------------------------------------------------------------------------------------------------------------------------------------- #
 #free up space and remove objects from previous gse (except for the functions I made and gene_annot)
-rm(list = setdiff(ls(), c(lsf.str())))
+rm(list = setdiff(ls(), c("gene_set_masterlist",lsf.str())))
 
 gc()
 
@@ -2576,24 +2634,38 @@ library(reshape2)
 hist(raw_counts)
 
 
-## 3) GSVA and boxplot to see comparisons (genesig_D_7---------------------------
-gene_set_list <- list(c("TAP1","GBP5","GBP2","FCGR1B"))
+# Start loop for 3-gene, 4-gene and 7-gene sig
+for (gene_sig in names(gene_set_masterlist)){
+  
+print(gene_sig)
+this.accession.res.genesig.dir <- file.path(this.accession.res.dir, gene_sig)
+if(!exists(this.accession.res.genesig.dir)) dir.create(this.accession.res.genesig.dir)
+
+message("Running ", this.accession.no, " for ", gene_sig, ": ", paste(gene_set_masterlist[[gene_sig]], collapse = ", "))
+
+gene_set_list <- list(gene_set_masterlist[[gene_sig]])
 
 # Get the gene IDs instead of HGNCs
+#CANNOT FIND FCGR1C OR ITS ALIASES. USE "FCGR1B" instead
+gene_set_list[[1]][which(gene_set_list[[1]] == "FCGR1CP")] <- "FCGR1B"
+
+gene_set_plot_label <- gene_set_list[[1]]
+
+## 3) GSVA and boxplot to see comparisons (genesig_D_7---------------------------
+
 signature_geneid <- as.character(gene_annot[match(gene_set_list[[1]], gene_annot$GENE_SYMBOL), "REFSEQ"])
 signature_geneid %in% row.names(counts_norm)
 gene_set_list <- c(signature_geneid)
-#CANNOT FIND FCGR1C OR ITS ALIASES
 
-if(length(signature_geneid) < 4){ 
+if(length(signature_geneid) < length(gene_set_list)){ 
   print("Missing gene in signature after genone_annot conversion")
   stop() }
 
-# For each sample, get the mean standardized expression of genes in the 4-gene signature
+# For each sample, get the mean standardized expression of genes in the signature
 mean_sig_zscore <- mean_zscore_func()
 
 ## 3.1) Boxplot ---------------------------
-this.figure.dir <- file.path(this.accession.res.dir, "figures", "boxplot")
+this.figure.dir <- file.path(this.accession.res.genesig.dir, "figures", "boxplot")
 if(!exists(this.figure.dir)) dir.create(this.figure.dir, recursive = TRUE)
 
 boxplot_all <- as.data.frame(cbind(mean_zscore = mean_sig_zscore,
@@ -2620,14 +2692,14 @@ boxplot <- boxplot_all
     boxplotfig <- boxplotfig +   
   labs(title = paste0("Signature Analysis: ", this.accession.no, " (", outcome, ")"),
        color = "Disease", #legend title
-       caption = paste0("Signature:TAP1, GBP5, GBP2, FCGR1B", "\n", 
+       caption = paste0("Signature: ", paste(gene_set_plot_label, collapse = ", "), "\n", 
                         "Note: FCGR1CP was not annotated in GPL13497; FCGR1B was used as a proxy", "\n",
                         "n=", nrow(boxplot_all),"\n",
        "Signature scores calculated as mean of z-scored expression of signature genes\n",
        "Normalised expression data was obtained from the original study: 'Data has been log-transformed and\nnormalized (percentile shift) within the Agilent GeneSpring V13 software'"
 ))
     
-    ggsave(boxplotfig, filename = file.path(this.figure.dir, paste0("meanzscore_plot_", this.accession.no, ".png")),
+ggsave(boxplotfig, filename = file.path(this.figure.dir, paste0("meanzscore_plot_", this.accession.no, "_", gene_sig, "_", outcome, ".png")),
        width = 3600, 
        height = 3600, 
        units = "px" )
@@ -2658,7 +2730,7 @@ comparison_levels <- sapply(pairwise_comparisons, function(x) {
 comparison_plotlabel_levels <- comparison_levels
 
 # Run roc function
-this.figure.dir <- file.path(this.accession.res.dir, "figures", "roc")
+this.figure.dir <- file.path(this.accession.res.genesig.dir, "figures", "roc")
 if(!exists(this.figure.dir)) dir.create(this.figure.dir, recursive = TRUE)
 
 clinical_treat <- clinical
@@ -2667,8 +2739,8 @@ roc_func_res <- roc_func(outcome = outcome)
 res_table <- roc_func_res$res_table
 forestplot_res_table <- roc_func_res$forestplot_res_table
 
-write.csv(res_table, file.path(this.accession.res.dir, paste0(this.accession.no,"_res_table_", outcome, ".csv")))
-write.csv(forestplot_res_table, file.path(this.accession.res.dir, paste0(this.accession.no,"_mean_ztransformed_scores_forestplot_res_table_", outcome, ".csv")))
+write.csv(res_table, file.path(this.accession.res.genesig.dir, paste0(this.accession.no, "_", gene_sig, "_res_table_", outcome, ".csv")))
+write.csv(forestplot_res_table, file.path(this.accession.res.genesig.dir, paste0(this.accession.no, "_", gene_sig, "_mean_ztransformed_scores_forestplot_res_table_", outcome, ".csv")))
 
 
   
@@ -2684,7 +2756,7 @@ timepoint_roc <- timepoint_roc +   labs(
     x = "FPR (1 - Specificity)",
     y = "TPR (Sensitivity)",
     color = "Comparison",
-       caption = paste0("Signature:TAP1, GBP5, GBP2, FCGR1B", "\n", 
+       caption = paste0("Signature: ", paste(gene_set_plot_label, collapse = ", "), "\n", 
                         "Note: FCGR1CP was not annotated in GPL13497; FCGR1B was used as a proxy"))
   
   
@@ -2701,14 +2773,14 @@ panel_forest <- annotate_figure(
     panel_forest,
     top = text_grob(paste0(this.accession.no, " (", outcome, ")"), size = 14, hjust = 0, x = 0),
     bottom = text_grob(paste0("Senstivity and specificity calculated at Youden threshold \n",
-                              "Signature:TAP1, GBP5, GBP2, FCGR1B", "\n", 
+                              "Signature: ", paste(gene_set_plot_label, collapse = ", "), "\n", 
                         "Note: FCGR1CP was not annotated in GPL13497; FCGR1B was \n used as a proxy"),
                        size = 12, hjust = 0, x = 0))
     
 ggsave(panel_forest, filename= file.path(this.figure.dir, paste0("forestplot_panel_", outcome,".png")),
          width = 15, height = 20, units = "cm",   bg = "white"  )
 
-  
+}#close loop
 
   
   
@@ -2718,10 +2790,11 @@ ggsave(panel_forest, filename= file.path(this.figure.dir, paste0("forestplot_pan
 # 3.  OTHER DISEASES DATASETS ======================================================
 # ================================================================================== #
 
+# --------------------------------------------------------------------------------------------------------------------------------------------- #
 # GSE42834  -----------------------------------------------------------------------------------------------------------------------------------
-
+# --------------------------------------------------------------------------------------------------------------------------------------------- #
 #free up space and remove objects from previous gse (except for the functions I made and gene_annot)
-rm(list = setdiff(ls(), c(lsf.str())))
+rm(list = setdiff(ls(), c("gene_set_masterlist",lsf.str())))
 
 gc()
 
@@ -2737,11 +2810,9 @@ setwd(file.path(my_directory,"TB", "data", "public", this.accession.no))
 this.accession.res.dir <- file.path(output.dir, this.accession.no)
 if(!exists(this.accession.res.dir)) dir.create(this.accession.res.dir)
 
-if(!exists(file.path(this.accession.res.dir, "figures"))) dir.create(file.path(this.accession.res.dir, "figures"))
-
 
 ## 1) Load public data -------------------------------------------------------------
-#Ran in HPC
+# Ran in HPC to retrive counts and metadata
 # urld <- "https://www.ncbi.nlm.nih.gov/geo/download/?format=file&type=rnaseq_counts"
 # path <- paste(urld, "acc=GSE193777", "file=GSE193777_raw_counts_GRCh38.p13_NCBI.tsv.gz", sep="&");
 # tbl <- as.matrix(data.table::fread(path, header=T, colClasses="integer"), rownames=1)
@@ -2818,7 +2889,7 @@ gene_set_list <- list(c("TAP1","GBP5","GBP2","FCGR1C")) #Used alias FCGR1C inste
 signature_geneid <- as.character(gene_annot[match(gene_set_list[[1]], gene_annot$Symbol), "ID"])
 gene_set_list <- c(signature_geneid)
 
-if(length(signature_geneid) < 4){ 
+if(length(signature_geneid) < length(gene_set_list)){ 
   print("Missing gene in signature after genone_annot conversion")
   stop() }
 
@@ -2839,7 +2910,7 @@ x_order <- c("Control", "TB", "Sarcoidosis", "Pneumonia", "Lung cancer")
 
 # Run boxplot function for all (no treatment outcome data for this gse)
 # Function defined previously
-this.figure.dir <- file.path(this.accession.res.dir, "figures", "boxplot")
+this.figure.dir <- file.path(this.accession.res.genesig.dir, "figures", "boxplot")
 if(!exists(this.figure.dir)) dir.create(this.figure.dir, recursive = TRUE)
 
 boxplot <- boxplot_all
@@ -2849,14 +2920,14 @@ boxplotfig <- boxplot_func(outcome = outcome)
 
 boxplotfig <- boxplotfig +
   labs(title = paste0("Signature Analysis: ", this.accession.no, " (", outcome, ")"),
-       caption = paste0("Signature:TAP1, GBP5, GBP2, FCGR1CP", "\n", "n=", nrow(boxplot),"\n",
+       caption = paste0("Signature: ", paste(gene_set_plot_label, collapse = ", "), "\n", "n=", nrow(boxplot),"\n",
        "Signature scores calculated as mean of z-scored expression of signature genes\n",
        "Normalised expression data was obtained from original study: described as background \n corrected, log2-transformed and 75th percentile normalised using GeneSpring 11.5\n",
        "P values from Mann-Whitney U test shown")) 
 
 
 
-ggsave(boxplotfig, filename = file.path(this.figure.dir, paste0("meanzscore_plot_", this.accession.no, ".png")),
+ggsave(boxplotfig, filename = file.path(this.figure.dir, paste0("meanzscore_plot_", this.accession.no, "_", gene_sig, "_", outcome, ".png")),
        width = 3600,
        height = 3200,
        units = "px" )
@@ -2891,10 +2962,10 @@ roc_func_res <- roc_func(outcome = outcome)
 res_table <- roc_func_res$res_table
 forestplot_res_table <- roc_func_res$forestplot_res_table
 
-write.csv(res_table, file.path(this.accession.res.dir, paste0(this.accession.no,"_res_table_", outcome, ".csv")))
-write.csv(forestplot_res_table, file.path(this.accession.res.dir, paste0(this.accession.no,"_mean_ztransformed_scores_forestplot_res_table_", outcome, ".csv")))
+write.csv(res_table, file.path(this.accession.res.genesig.dir, paste0(this.accession.no, "_", gene_sig, "_res_table_", outcome, ".csv")))
+write.csv(forestplot_res_table, file.path(this.accession.res.genesig.dir, paste0(this.accession.no, "_", gene_sig, "_mean_ztransformed_scores_forestplot_res_table_", outcome, ".csv")))
 
-this.figure.dir <- file.path(this.accession.res.dir, "figures", "roc")
+this.figure.dir <- file.path(this.accession.res.genesig.dir, "figures", "roc")
 if(!exists(this.figure.dir)) dir.create(this.figure.dir)
 
 disease_roc_subset <- comparison_plotlabel_levels
@@ -2911,8 +2982,7 @@ disease_roc <- disease_roc +   labs(
     x = "FPR (1 - Specificity)",
     y = "TPR (Sensitivity)",
     color = "Comparison",
-    caption = "Signature:  TAP1, GBP5, GBP2, FCGR1CP") 
-
+       caption = paste0("Signature: ", paste(gene_set_plot_label, collapse = ", ")))
 
 ggsave(disease_roc, filename = file.path(this.figure.dir, paste0("disease_roc_", outcome,".png")), 
        width = roc_plot_width, 
@@ -2925,7 +2995,7 @@ panel_forest <- annotate_figure(
     panel_forest,
     top = text_grob(paste0(this.accession.no, " (", outcome, ")"), size = 14, hjust = 0, x = 0),
     bottom = text_grob(paste0("Senstivity and specificity calculated at Youden threshold \n",
-                              "Signature:TAP1, GBP5, GBP2, FCGR1B"),
+                              "Signature: ", paste(gene_set_plot_label, collapse = ", ")),
                        size = 12, hjust = 0, x = 0))
 ggsave(panel_forest, filename= file.path(this.figure.dir, paste0("forestplot_panel_", outcome,".png")),
          width = 15, height = 20, units = "cm",   bg = "white"  )
@@ -2935,11 +3005,12 @@ ggsave(panel_forest, filename= file.path(this.figure.dir, paste0("forestplot_pan
 
 
 
-
+# --------------------------------------------------------------------------------------------------------------------------------------------- #
 # GSE19491  -----------------------------------------------------------------------------------------------------------------------------------
+# --------------------------------------------------------------------------------------------------------------------------------------------- #
 
-#free up space and remove objects from previous gse (except for the functions I made and gene_annot)
-rm(list = setdiff(ls(), c(lsf.str())))
+#free up space and remove objects from previous gse (except for the functions I made)
+rm(list = setdiff(ls(), c("gene_set_masterlist",lsf.str())))
 
 gc()
 
@@ -2955,12 +3026,9 @@ setwd(file.path(my_directory,"TB", "data", "public", this.accession.no))
 this.accession.res.dir <- file.path(output.dir, this.accession.no)
 if(!exists(this.accession.res.dir)) dir.create(this.accession.res.dir)
 
-if(!exists(file.path(this.accession.res.dir, "figures"))) dir.create(file.path(this.accession.res.dir, "figures"))
-
-
 
 ## 1) Load public data -------------------------------------------------------------
-#Ran in HPC
+# Ran in HPC to retrive counts and metadata
 # urld <- "https://www.ncbi.nlm.nih.gov/geo/download/?format=file&type=rnaseq_counts"
 # path <- paste(urld, "acc=GSE193777", "file=GSE193777_raw_counts_GRCh38.p13_NCBI.tsv.gz", sep="&");
 # tbl <- as.matrix(data.table::fread(path, header=T, colClasses="integer"), rownames=1)
@@ -3101,7 +3169,7 @@ signature_geneid[4] <- "ILMN_2261600"
 
 gene_set_list <- c(signature_geneid)
 
-if(length(signature_geneid) < 4){ 
+if(length(signature_geneid) < length(gene_set_list)){ 
   print("Missing gene in signature after genone_annot conversion")
   stop() }
 
@@ -3154,7 +3222,7 @@ boxplot$score <- as.numeric(boxplot$score)
 
 # Run boxplot function for all (no treatment outcome data for this gse)
 # Function defined previously
-this.figure.dir <- file.path(this.accession.res.dir, "figures", "boxplot")
+this.figure.dir <- file.path(this.accession.res.genesig.dir, "figures", "boxplot")
 if(!exists(this.figure.dir)) dir.create(this.figure.dir, recursive = TRUE)
 
 
@@ -3190,14 +3258,14 @@ boxplotfig <- ggplot(boxplot, aes(
                                    hjust=1))+
   
   labs(title = paste0("Signature Analysis: ", this.accession.no, " (", outcome, ")"),
-       caption = paste0("Signature:TAP1, GBP5, GBP2, FCGR1CP", "\n", "n=", nrow(boxplot),"\n",
+       caption = paste0("Signature: ", paste(gene_set_plot_label, collapse = ", "), "\n", "n=", nrow(boxplot),"\n",
        "Signature scores calculated as mean of z-scored expression of signature genes\n",
        "Normalised data was obtained from the original study (BeadStudio average chip normalisation)and log2-transformed prior to analysis")) +
   ylab (label = "Signature Score") +
   xlab (label = "Disease")
 
 
-ggsave(boxplotfig, filename = file.path(this.figure.dir, paste0("meanzscore_plot_", this.accession.no, ".png")),
+ggsave(boxplotfig, filename = file.path(this.figure.dir, paste0("meanzscore_plot_", this.accession.no, "_", gene_sig, "_", outcome, ".png")),
        width = 5000,
        height = 3500,
        units = "px" )
@@ -3256,7 +3324,7 @@ for (i in names(listof_sep_plots)){
     
 
   labs(title = paste0("Signature Analysis: ", this.accession.no, " (", outcome, ")"),
-       caption = paste0("Signature:TAP1, GBP5, GBP2, FCGR1CP", "\n", "n=", nrow(boxplot),"\n",
+       caption = paste0("Signature: ", paste(gene_set_plot_label, collapse = ", "), "\n", "n=", nrow(boxplot),"\n",
        "Signature scores calculated as mean of z-scored expression of signature genes\n",
        "Normalised data was obtained from the original study \n(BeadStudio average chip normalisation)\nand log2-transformed prior to analysis")) +
   ylab (label = "Signature Score") +
@@ -3333,7 +3401,7 @@ comparison_levels <- sapply(pairwise_comparisons, function(x) {
 comparison_plotlabel_levels <- comparison_levels
 
 # Run roc function
-this.figure.dir <- file.path(this.accession.res.dir, "figures", "roc")
+this.figure.dir <- file.path(this.accession.res.genesig.dir, "figures", "roc")
 if(!exists(this.figure.dir)) dir.create(this.figure.dir, recursive = TRUE)
 
 clinical_treat <- clinical[which(clinical$sample_id %in% row.names(boxplot_all)),]
@@ -3346,8 +3414,8 @@ res_table <- roc_func_res$res_table
 forestplot_res_table <- roc_func_res$forestplot_res_table
 roc_data <- roc_func_res$roc_data
 
-write.csv(res_table, file.path(this.accession.res.dir, paste0(this.accession.no,"_res_table_", outcome, ".csv")))
-write.csv(forestplot_res_table, file.path(this.accession.res.dir, paste0(this.accession.no,"_mean_ztransformed_scores_forestplot_res_table_", outcome, ".csv")))
+write.csv(res_table, file.path(this.accession.res.genesig.dir, paste0(this.accession.no, "_", gene_sig, "_res_table_", outcome, ".csv")))
+write.csv(forestplot_res_table, file.path(this.accession.res.genesig.dir, paste0(this.accession.no, "_", gene_sig, "_mean_ztransformed_scores_forestplot_res_table_", outcome, ".csv")))
 
 
 levels(roc_data$Comparison)
@@ -3367,7 +3435,7 @@ disease_roc <- disease_roc +   labs(
     x = "FPR (1 - Specificity)",
     y = "TPR (Sensitivity)",
     color = "Comparison",
-    caption = "Signature:  TAP1, GBP5, GBP2, FCGR1CP") 
+       caption = paste0("Signature: ", paste(gene_set_plot_label, collapse = ", ")))
 
 
 ggsave(disease_roc, filename = file.path(this.figure.dir, paste0("SA_roc_tb.png")), 
@@ -3385,7 +3453,7 @@ disease_roc <- disease_roc +   labs(
     x = "FPR (1 - Specificity)",
     y = "TPR (Sensitivity)",
     color = "Comparison",
-    caption = "Signature:  TAP1, GBP5, GBP2, FCGR1CP") 
+       caption = paste0("Signature: ", paste(gene_set_plot_label, collapse = ", ")))
 
 
 ggsave(disease_roc, filename = file.path(this.figure.dir, paste0("SA_roc_TBvsLungdx.png")), 
@@ -3404,7 +3472,7 @@ disease_roc <- disease_roc +   labs(
     x = "FPR (1 - Specificity)",
     y = "TPR (Sensitivity)",
     color = "Comparison",
-    caption = "Signature:  TAP1, GBP5, GBP2, FCGR1CP") 
+       caption = paste0("Signature: ", paste(gene_set_plot_label, collapse = ", ")))
 
 
 ggsave(disease_roc, filename = file.path(this.figure.dir, paste0("LON_roc_tb.png")), 
@@ -3423,7 +3491,7 @@ disease_roc <- disease_roc +   labs(
     x = "FPR (1 - Specificity)",
     y = "TPR (Sensitivity)",
     color = "Comparison",
-    caption = "Signature:  TAP1, GBP5, GBP2, FCGR1CP") 
+       caption = paste0("Signature: ", paste(gene_set_plot_label, collapse = ", ")))
 
 
 ggsave(disease_roc, filename = file.path(this.figure.dir, paste0("LON_roc_tb_time.png")), 
@@ -3442,8 +3510,7 @@ disease_roc <- disease_roc +   labs(
     x = "FPR (1 - Specificity)",
     y = "TPR (Sensitivity)",
     color = "Comparison",
-    caption = "Signature:  TAP1, GBP5, GBP2, FCGR1CP") 
-
+       caption = paste0("Signature: ", paste(gene_set_plot_label, collapse = ", ")))
 
 ggsave(disease_roc, filename = file.path(this.figure.dir, paste0("LON_roc_TBvsLungdx.png")), 
        width = roc_plot_width, 
@@ -3461,8 +3528,7 @@ disease_roc <- disease_roc +   labs(
     x = "FPR (1 - Specificity)",
     y = "TPR (Sensitivity)",
     color = "Comparison",
-    caption = "Signature:  TAP1, GBP5, GBP2, FCGR1CP") 
-
+       caption = paste0("Signature: ", paste(gene_set_plot_label, collapse = ", ")))
 
 ggsave(disease_roc, filename = file.path(this.figure.dir, paste0("roc_lungdx.png")), 
        width = roc_plot_width, 
@@ -3542,7 +3608,7 @@ auc_plot <- res_table %>%
     panel_forest,
     top = text_grob(paste0(this.accession.no, " (", outcome, ")"), size = 14, hjust = 0, x = 0),
     bottom = text_grob(paste0("Senstivity and specificity calculated at Youden threshold \n",
-                              "Signature:TAP1, GBP5, GBP2, FCGR1CP"), 
+                              "Signature: ", paste(gene_set_plot_label, collapse = ", ")),
                        size = 12, hjust = 0, x = 0)
   )
 
@@ -3555,8 +3621,8 @@ auc_plot <- res_table %>%
 
 # GSE42826 -----------------------------------------------------------------------------------------------------------------------------------
 
-#free up space and remove objects from previous gse (except for the functions I made and gene_annot)
-rm(list = setdiff(ls(), c(lsf.str())))
+#free up space and remove objects from previous gse (except for the functions I made)
+rm(list = setdiff(ls(), c("gene_set_masterlist",lsf.str())))
 
 gc()
 
@@ -3571,8 +3637,6 @@ setwd(file.path(my_directory,"TB", "data", "public", this.accession.no))
 
 this.accession.res.dir <- file.path(output.dir, this.accession.no)
 if(!exists(this.accession.res.dir)) dir.create(this.accession.res.dir)
-
-if(!exists(file.path(this.accession.res.dir, "figures"))) dir.create(file.path(this.accession.res.dir, "figures"))
 
 
 ## 1) Load public data -------------------------------------------------------------
@@ -3655,7 +3719,7 @@ gene_set_list <- list(c("TAP1","GBP5","GBP2","FCGR1C")) #Used alias FCGR1C inste
 signature_geneid <- as.character(gene_annot[match(gene_set_list[[1]], gene_annot$Symbol), "ID"])
 gene_set_list <- c(signature_geneid)
 
-if(length(signature_geneid) < 4){ 
+if(length(signature_geneid) < length(gene_set_list)){ 
   print("Missing gene in signature after genone_annot conversion")
   stop() }
 
@@ -3680,7 +3744,7 @@ x_order <- c("Control", "TB", "Non-active Sarcoidosis", "Active Sarcoidosis", "P
 
 # Run boxplot function for all (no treatment outcome data for this gse)
 # Function defined previously
-this.figure.dir <- file.path(this.accession.res.dir, "figures", "boxplot")
+this.figure.dir <- file.path(this.accession.res.genesig.dir, "figures", "boxplot")
 if(!exists(this.figure.dir)) dir.create(this.figure.dir, recursive = TRUE)
 
 boxplot <- boxplot_all
@@ -3689,7 +3753,7 @@ boxplotfig <- boxplot_func(outcome = "Lung Disease")
 
 boxplotfig <- boxplotfig +
   labs(title = paste0("Signature Analysis: ", this.accession.no, " (", outcome, ")"),
-       caption = paste0("Signature:TAP1, GBP5, GBP2, FCGR1C", "\n", "n=", nrow(boxplot),"\n",
+       caption = paste0("Signature: ", paste(gene_set_plot_label, collapse = ", "), "\n", "n=", nrow(boxplot),"\n",
        "Signature scores calculated as mean of z-scored expression of signature genes\n",
        "Normalised expression data was obtained from original study: described as background corrected, normalised\n and log2-transformed\n",
        "P values from Mann-Whitney U test shown"))+
@@ -3699,7 +3763,7 @@ boxplotfig <- boxplotfig +
 
 
 
-ggsave(boxplotfig, filename = file.path(this.figure.dir, paste0("meanzscore_plot_", this.accession.no, ".png")),
+ggsave(boxplotfig, filename = file.path(this.figure.dir, paste0("meanzscore_plot_", this.accession.no, "_", gene_sig, "_", outcome, ".png")),
        width = 3600,
        height = 3200,
        units = "px" )
@@ -3734,7 +3798,7 @@ comparison_plotlabel_levels <- comparison_levels
 
 
 #Run ROC function
-this.figure.dir <- file.path(this.accession.res.dir, "figures", "roc")
+this.figure.dir <- file.path(this.accession.res.genesig.dir, "figures", "roc")
 if(!exists(this.figure.dir)) dir.create(this.figure.dir, recursive = TRUE)
 
 clinical_treat <- clinical
@@ -3743,8 +3807,8 @@ roc_func_res <- roc_func(outcome = outcome)
 res_table <- roc_func_res$res_table
 forestplot_res_table <- roc_func_res$forestplot_res_table
 
-write.csv(res_table, file.path(this.accession.res.dir, paste0(this.accession.no,"_res_table_", outcome, ".csv")))
-write.csv(forestplot_res_table, file.path(this.accession.res.dir, paste0(this.accession.no,"_mean_ztransformed_scores_forestplot_res_table_", outcome, ".csv")))
+write.csv(res_table, file.path(this.accession.res.genesig.dir, paste0(this.accession.no, "_", gene_sig, "_res_table_", outcome, ".csv")))
+write.csv(forestplot_res_table, file.path(this.accession.res.genesig.dir, paste0(this.accession.no, "_", gene_sig, "_mean_ztransformed_scores_forestplot_res_table_", outcome, ".csv")))
 
 
 disease_roc_subset <- comparison_levels
@@ -3760,8 +3824,7 @@ disease_roc <- disease_roc +   labs(
     x = "FPR (1 - Specificity)",
     y = "TPR (Sensitivity)",
     color = "Comparison",
-    caption = "Signature:  TAP1, GBP5, GBP2, FCGR1CP") 
-
+       caption = paste0("Signature: ", paste(gene_set_plot_label, collapse = ", ")))
 
 ggsave(disease_roc, filename = file.path(this.figure.dir, paste0("disease_roc_", outcome,".png")), 
        width = roc_plot_width, 
@@ -3774,16 +3837,16 @@ panel_forest <- annotate_figure(
     panel_forest,
     top = text_grob(paste0(this.accession.no, " (", outcome, ")"), size = 14, hjust = 0, x = 0),
     bottom = text_grob(paste0("Senstivity and specificity calculated at Youden threshold \n",
-                              "Signature:TAP1, GBP5, GBP2, FCGR1B"),
+                              "Signature: ", paste(gene_set_plot_label, collapse = ", ")),
                        size = 12, hjust = 0, x = 0))
 ggsave(panel_forest, filename= file.path(this.figure.dir, paste0("forestplot_panel_", outcome,".png")),
          width = 15, height = 20, units = "cm",   bg = "white"  )
 
-
+# --------------------------------------------------------------------------------------------------------------------------------------------- #
 # GSE83456  ----------------------------------------------------------------------------------------------------------------------------------------
-
-#free up space and remove objects from previous gse (except for the functions I made and gene_annot)
-rm(list = setdiff(ls(), c(lsf.str())))
+# --------------------------------------------------------------------------------------------------------------------------------------------- #
+#free up space and remove objects from previous gse (except for the functions I made)
+rm(list = setdiff(ls(), c("gene_set_masterlist",lsf.str())))
 
 gc()
 
@@ -3798,8 +3861,6 @@ setwd(file.path(my_directory,"TB", "data", "public", this.accession.no))
 
 this.accession.res.dir <- file.path(output.dir, this.accession.no)
 if(!exists(this.accession.res.dir)) dir.create(this.accession.res.dir)
-
-if(!exists(file.path(this.accession.res.dir, "figures"))) dir.create(file.path(this.accession.res.dir, "figures"))
 
 
 ## 1) Load public data -------------------------------------------------------------
@@ -3877,7 +3938,7 @@ gene_set_list <- list(c("TAP1","GBP5","GBP2","FCGR1C")) #Used alias FCGR1C inste
 signature_geneid <- as.character(gene_annot[match(gene_set_list[[1]], gene_annot$Symbol), "ID"])
 gene_set_list <- c(signature_geneid)
 
-if(length(signature_geneid) < 4){ 
+if(length(signature_geneid) < length(gene_set_list)){ 
   print("Missing gene in signature after genone_annot conversion")
   stop() }
 
@@ -3909,7 +3970,7 @@ x_order <- c("HC", "PTB", "EPTB", "Sarcoidosis")
 
 # Run boxplot function for all (no treatment outcome data for this gse)
 # Function defined previously
-this.figure.dir <- file.path(this.accession.res.dir, "figures", "boxplot")
+this.figure.dir <- file.path(this.accession.res.genesig.dir, "figures", "boxplot")
 if(!exists(this.figure.dir)) dir.create(this.figure.dir, recursive = TRUE)
 
 boxplot <- boxplot_all
@@ -3918,7 +3979,7 @@ boxplotfig <- boxplot_func(outcome = "Lung Disease")
 
 boxplotfig <- boxplotfig +
   labs(title = paste0("Signature Analysis: ", this.accession.no, " (", outcome, ")"),
-       caption = paste0("Signature:TAP1, GBP5, GBP2, FCGR1C", "\n", "n=", nrow(boxplot),"\n",
+       caption = paste0("Signature: ", paste(gene_set_plot_label, collapse = ", "), "\n", "n=", nrow(boxplot),"\n",
        "Signature scores calculated as mean of z-scored expression of signature genes\n",
        "Normalised expression data was obtained from original study: described as background \ncorrected and quantile normalised using GenomeStudio\n",
        "P values from Mann-Whitney U test shown"))+
@@ -3928,7 +3989,7 @@ boxplotfig <- boxplotfig +
 
 
 
-ggsave(boxplotfig, filename = file.path(this.figure.dir, paste0("meanzscore_plot_", this.accession.no, ".png")),
+ggsave(boxplotfig, filename = file.path(this.figure.dir, paste0("meanzscore_plot_", this.accession.no, "_", gene_sig, "_", outcome, ".png")),
        width = 3600,
        height = 3200,
        units = "px" )
@@ -3963,7 +4024,7 @@ res_table <- data.frame()
 roc_objects <- list()
 
 #Run ROC function
-this.figure.dir <- file.path(this.accession.res.dir, "figures", "roc")
+this.figure.dir <- file.path(this.accession.res.genesig.dir, "figures", "roc")
 if(!exists(this.figure.dir)) dir.create(this.figure.dir, recursive = TRUE)
 
 
@@ -3973,8 +4034,8 @@ roc_func_res <- roc_func(outcome = outcome)
 res_table <- roc_func_res$res_table
 forestplot_res_table <- roc_func_res$forestplot_res_table
 
-write.csv(res_table, file.path(this.accession.res.dir, paste0(this.accession.no,"_res_table_", outcome, ".csv")))
-write.csv(forestplot_res_table, file.path(this.accession.res.dir, paste0(this.accession.no,"_mean_ztransformed_scores_forestplot_res_table_", outcome, ".csv")))
+write.csv(res_table, file.path(this.accession.res.genesig.dir, paste0(this.accession.no, "_", gene_sig, "_res_table_", outcome, ".csv")))
+write.csv(forestplot_res_table, file.path(this.accession.res.genesig.dir, paste0(this.accession.no, "_", gene_sig, "_mean_ztransformed_scores_forestplot_res_table_", outcome, ".csv")))
 
 
 
@@ -3992,8 +4053,7 @@ disease_roc <- disease_roc +   labs(
     x = "FPR (1 - Specificity)",
     y = "TPR (Sensitivity)",
     color = "Comparison",
-    caption = "Signature:  TAP1, GBP5, GBP2, FCGR1CP") 
-
+       caption = paste0("Signature: ", paste(gene_set_plot_label, collapse = ", ")))
 
 ggsave(disease_roc, filename = file.path(this.figure.dir, paste0("disease_roc_", outcome,".png")), 
        width = roc_plot_width, 
@@ -4006,7 +4066,7 @@ panel_forest <- annotate_figure(
     panel_forest,
     top = text_grob(paste0(this.accession.no, " (", outcome, ")"), size = 14, hjust = 0, x = 0),
     bottom = text_grob(paste0("Senstivity and specificity calculated at Youden threshold \n",
-                              "Signature:TAP1, GBP5, GBP2, FCGR1B"),
+                              "Signature: ", paste(gene_set_plot_label, collapse = ", ")),
                        size = 12, hjust = 0, x = 0))
 ggsave(panel_forest, filename= file.path(this.figure.dir, paste0("forestplot_panel_", outcome,".png")),
          width = 15, height = 20, units = "cm",   bg = "white"  )
