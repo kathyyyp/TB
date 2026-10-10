@@ -2882,8 +2882,24 @@ write.table(clinical, file.path("clinical.txt"))
 
 
 
-## 3) Mean of z-scored expression ---------------------------
-gene_set_list <- list(c("TAP1","GBP5","GBP2","FCGR1C")) #Used alias FCGR1C instead of FCGR1CP
+# Start loop for 3-gene, 4-gene and 7-gene sig
+for (gene_sig in names(gene_set_masterlist)){
+  
+print(gene_sig)
+this.accession.res.genesig.dir <- file.path(this.accession.res.dir, gene_sig)
+if(!exists(this.accession.res.genesig.dir)) dir.create(this.accession.res.genesig.dir)
+
+message("Running ", this.accession.no, " for ", gene_sig, ": ", paste(gene_set_masterlist[[gene_sig]], collapse = ", "))
+
+gene_set_list <- list(gene_set_masterlist[[gene_sig]])
+
+
+# Get the gene IDs instead of HGNCs
+#CANNOT FIND FCGR1C OR ITS ALIASES. USE "FCGR1C" instead
+gene_set_list[[1]][which(gene_set_list[[1]] == "FCGR1CP")] <- "FCGR1C"
+
+gene_set_plot_label <- gene_set_list[[1]]
+
 
 # Get the gene IDs instead of HGNCs
 signature_geneid <- as.character(gene_annot[match(gene_set_list[[1]], gene_annot$Symbol), "ID"])
@@ -2893,6 +2909,8 @@ if(length(signature_geneid) < length(gene_set_list)){
   print("Missing gene in signature after genone_annot conversion")
   stop() }
 
+
+## 3) Mean of z-scored expression ---------------------------
 mean_sig_zscore <- mean_zscore_func() #Function already defined for previous gse, same code 
 
 
@@ -3001,7 +3019,7 @@ ggsave(panel_forest, filename= file.path(this.figure.dir, paste0("forestplot_pan
          width = 15, height = 20, units = "cm",   bg = "white"  )
 
 
-
+}
 
 
 
@@ -3057,6 +3075,12 @@ raw_counts <- log2(raw_counts_prelog2) }
 #         las = 2, col = "lightblue", outline = FALSE)
 # 
 # hist(raw_counts)
+
+
+
+# Start loop for 3-gene, 4-gene and 7-gene sig
+for (gene_sig in names(gene_set_masterlist)){
+  
 counts_norm <- raw_counts
 
 
@@ -3152,20 +3176,28 @@ all(row.names(raw_clinical) == colnames(raw_counts))
 
 
 
-## 3) Mean of z-scored expression ---------------------------
-gene_set_list <- list(c("TAP1","GBP5","GBP2","FCGR1CP")) 
+
+print(gene_sig)
+this.accession.res.genesig.dir <- file.path(this.accession.res.dir, gene_sig)
+if(!exists(this.accession.res.genesig.dir)) dir.create(this.accession.res.genesig.dir)
+
+message("Running ", this.accession.no, " for ", gene_sig, ": ", paste(gene_set_masterlist[[gene_sig]], collapse = ", "))
+
+gene_set_list <- list(gene_set_masterlist[[gene_sig]])
+gene_set_plot_label <- gene_set_list[[1]]
 
 # Get the gene IDs instead of HGNCs
 signature_geneid <- as.character(gene_annot[match(gene_set_list[[1]], gene_annot$Symbol), "ID"])
+gene_set_list <- c(signature_geneid)
+
 
 #https://gemma.msl.ubc.ca/arrays/showArrayDesign.html?id=503
 #according to platform GPL6947, FCGR1CP is both of those probs?
 
-"ILMN_2261600" %in% row.names(counts_norm)
-"ILMN_2176063" %in%  row.names(counts_norm)
+"ILMN_2261600" %in% row.names(counts_norm) #probe description: FCGR1A, FCGR1BP, FCGR1CP, FCGR1B - use this one
+"ILMN_2176063" %in%  row.names(counts_norm) #probe description: FCGR1A, FCGR1BP, FCGR1CP, FCGR1A
 
-signature_geneid[4] <- "ILMN_2261600"
-# signature_geneid[4] <- "ILMN_2176063"
+signature_geneid[which(is.na(signature_geneid))] <- "ILMN_2261600" #the FCGR1CP became NA. change it to 
 
 gene_set_list <- c(signature_geneid)
 
@@ -3173,6 +3205,7 @@ if(length(signature_geneid) < length(gene_set_list)){
   print("Missing gene in signature after genone_annot conversion")
   stop() }
 
+## 3) Mean of z-scored expression ---------------------------
 mean_sig_zscore <- mean_zscore_func() #Function already defined for previous gse, same code 
 
 
@@ -3617,7 +3650,7 @@ auc_plot <- res_table %>%
          width = 40, height = 20, units = "cm",   bg = "white"  )
   
 
-
+}
 
 # GSE42826 -----------------------------------------------------------------------------------------------------------------------------------
 
@@ -3711,9 +3744,25 @@ hist(raw_counts)
 
 
 
+# Start loop for 3-gene, 4-gene and 7-gene sig
+for (gene_sig in names(gene_set_masterlist)){
+  
+print(gene_sig)
+this.accession.res.genesig.dir <- file.path(this.accession.res.dir, gene_sig)
+# this.accession.res.genesig.dir <- file.path(this.accession.res.dir, "including_control_vs_other_diseases", gene_sig) #if running control vs other lung disease
+if(!exists(this.accession.res.genesig.dir)) dir.create(this.accession.res.genesig.dir)
 
-## 3) Mean of z-scored expression ---------------------------
-gene_set_list <- list(c("TAP1","GBP5","GBP2","FCGR1C")) #Used alias FCGR1C instead of FCGR1CP
+message("Running ", this.accession.no, " for ", gene_sig, ": ", paste(gene_set_masterlist[[gene_sig]], collapse = ", "))
+
+gene_set_list <- list(gene_set_masterlist[[gene_sig]])
+
+
+# Get the gene IDs instead of HGNCs
+#CANNOT FIND FCGR1C OR ITS ALIASES. USE "FCGR1C" instead
+gene_set_list[[1]][which(gene_set_list[[1]] == "FCGR1CP")] <- "FCGR1C"
+
+gene_set_plot_label <- gene_set_list[[1]]
+
 
 # Get the gene IDs instead of HGNCs
 signature_geneid <- as.character(gene_annot[match(gene_set_list[[1]], gene_annot$Symbol), "ID"])
@@ -3723,10 +3772,9 @@ if(length(signature_geneid) < length(gene_set_list)){
   print("Missing gene in signature after genone_annot conversion")
   stop() }
 
+
+## 3) Mean of z-scored expression ---------------------------
 mean_sig_zscore <- mean_zscore_func() #Function already defined for previous gse, same code 
-
-
-
 
 ## 3.1) Boxplot ---------------------------
 outcome = "Lung Disease"
@@ -3778,10 +3826,10 @@ ggsave(boxplotfig, filename = file.path(this.figure.dir, paste0("meanzscore_plot
 # Define all pairwise comparisons of interest
 pairwise_comparisons <- list(
   c("Control", "TB"),
-  # c("Control", "Non-active Sarcoidosis"),
-  # c("Control", "Active Sarcoidosis"),
-  # c("Control", "Pneumonia"),
-  # c("Control", "Lung Cancer"),
+  # c("Control", "Non-active Sarcoidosis"), #if running control vs other lung disease
+  # c("Control", "Active Sarcoidosis"), #if running control vs other lung disease
+  # c("Control", "Pneumonia"), #if running control vs other lung disease
+  # c("Control", "Lung Cancer"), #if running control vs other lung disease
   c("TB", "Non-active Sarcoidosis"),
   c("TB", "Active Sarcoidosis"),
   c("TB", "Pneumonia"),
@@ -3819,6 +3867,7 @@ roc_plot_height = 3500
 
 # disease plot
 disease_roc <- disease_roc_plot_func(legend_nrow = 2)
+# disease_roc <- disease_roc_plot_func(legend_nrow = 3) #if running control vs other lung disease
 disease_roc <- disease_roc +   labs(
     title = paste0("TB vs Other lung diseases", " (", outcome, ")"),
     x = "FPR (1 - Specificity)",
@@ -3841,6 +3890,8 @@ panel_forest <- annotate_figure(
                        size = 12, hjust = 0, x = 0))
 ggsave(panel_forest, filename= file.path(this.figure.dir, paste0("forestplot_panel_", outcome,".png")),
          width = 15, height = 20, units = "cm",   bg = "white"  )
+
+} #close genesig loop
 
 # --------------------------------------------------------------------------------------------------------------------------------------------- #
 # GSE83456  ----------------------------------------------------------------------------------------------------------------------------------------
@@ -3872,7 +3923,7 @@ raw_metadata <- gse@phenoData@data
 raw_counts <- exprs(gse)
 
 write.csv(raw_metadata, file.path(main.dir, "data", "public", this.accession.no,  paste0(this.accession.no, "_raw_metadata.csv")))
-write.csv(raw_counts, file.path(my_main.dir, "data", "public", this.accession.no,  paste0(this.accession.no, "_raw_counts.csv")))
+write.csv(raw_counts, file.path(main.dir, "data", "public", this.accession.no,  paste0(this.accession.no, "_raw_counts.csv")))
 
 #Gene annotations
 gpl <- getGEO("GPL10558", destdir = ".")
@@ -3931,8 +3982,24 @@ hist(raw_counts)
 
 
 
-## 3) Mean of z-scored expression ---------------------------
-gene_set_list <- list(c("TAP1","GBP5","GBP2","FCGR1C")) #Used alias FCGR1C instead of FCGR1CP
+# Start loop for 3-gene, 4-gene and 7-gene sig
+for (gene_sig in names(gene_set_masterlist)){
+  
+print(gene_sig)
+this.accession.res.genesig.dir <- file.path(this.accession.res.dir, gene_sig)
+if(!exists(this.accession.res.genesig.dir)) dir.create(this.accession.res.genesig.dir)
+
+message("Running ", this.accession.no, " for ", gene_sig, ": ", paste(gene_set_masterlist[[gene_sig]], collapse = ", "))
+
+gene_set_list <- list(gene_set_masterlist[[gene_sig]])
+
+
+# Get the gene IDs instead of HGNCs
+#CANNOT FIND FCGR1C OR ITS ALIASES. USE "FCGR1C" instead
+gene_set_list[[1]][which(gene_set_list[[1]] == "FCGR1CP")] <- "FCGR1C"
+
+gene_set_plot_label <- gene_set_list[[1]]
+
 
 # Get the gene IDs instead of HGNCs
 signature_geneid <- as.character(gene_annot[match(gene_set_list[[1]], gene_annot$Symbol), "ID"])
@@ -3942,10 +4009,9 @@ if(length(signature_geneid) < length(gene_set_list)){
   print("Missing gene in signature after genone_annot conversion")
   stop() }
 
+
+## 3) Mean of z-scored expression ---------------------------
 mean_sig_zscore <- mean_zscore_func() #Function already defined for previous gse, same code 
-
-
-
 
 ## 3.1) Boxplot ---------------------------
 
@@ -4072,7 +4138,7 @@ ggsave(panel_forest, filename= file.path(this.figure.dir, paste0("forestplot_pan
          width = 15, height = 20, units = "cm",   bg = "white"  )
 
 
-
+} #close gene sig loop
 
 ## Differential expression TB vs Sarcoid Microarray ------------------------------------------------------------------------------------------
 library(ggrepel)
